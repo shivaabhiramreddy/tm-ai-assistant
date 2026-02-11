@@ -24,5 +24,18 @@ override_whitelisted_methods = {}
 # Doc Events
 doc_events = {}
 
-# Scheduled Tasks
-scheduler_events = {}
+# Scheduled Tasks — Alert evaluation engine
+scheduler_events = {
+    "cron": {
+        # Check hourly alerts every hour at minute 5
+        "5 * * * *": [
+            "tm_ai_assistant.alerts.check_hourly_alerts",
+        ],
+    },
+    "daily": [
+        "tm_ai_assistant.alerts.check_daily_alerts",
+    ],
+    "weekly": [
+        "tm_ai_assistant.alerts.check_weekly_alerts",
+    ],
+}

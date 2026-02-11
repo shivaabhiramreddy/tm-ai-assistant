@@ -1,12 +1,19 @@
 """
-TM AI Assistant — API Endpoints
-=================================
+TM AI Assistant — API Endpoints v2.0
+======================================
 Whitelisted API methods accessible from the mobile app.
 
 Endpoints:
-  POST /api/method/tm_ai_assistant.api.chat        — Send a chat message
-  GET  /api/method/tm_ai_assistant.api.chat_status  — Check if AI chat is enabled for user
-  GET  /api/method/tm_ai_assistant.api.usage        — Get usage stats for current user
+  POST /api/method/tm_ai_assistant.api.chat         — Send a chat message
+  GET  /api/method/tm_ai_assistant.api.chat_status   — Check if AI chat is enabled for user
+  GET  /api/method/tm_ai_assistant.api.usage         — Get usage stats for current user
+  GET  /api/method/tm_ai_assistant.api.alerts        — Get alert status for current user
+
+v2 changes:
+- Model reference updated to Opus 4.5
+- Cost calculations updated for Opus pricing ($15/M input, $75/M output)
+- Added alerts endpoint
+- Added thinking token tracking
 """
 
 import json
@@ -89,6 +96,7 @@ def chat(message, session_id=None, conversation_history=None):
 
     # 6. Log usage
     try:
+        model = result.get("model", "claude-opus-4-5-20251101")
         usage_log = frappe.get_doc({
             "doctype": "AI Usage Log",
             "user": user,
@@ -98,7 +106,7 @@ def chat(message, session_id=None, conversation_history=None):
             "output_tokens": result["usage"]["output_tokens"],
             "total_tokens": result["usage"]["total_tokens"],
             "tool_calls": result.get("tool_calls", 0),
-            "model": "claude-sonnet-4-20250514",
+            "model": model,
         })
         usage_log.insert(ignore_permissions=True)
         frappe.db.commit()
@@ -165,10 +173,11 @@ def usage(period="today"):
         order_by="total_tokens desc",
     )
 
-    # Estimate cost (Claude Sonnet pricing: ~$3/M input, ~$15/M output)
+    # Estimate cost — Claude Opus 4.5 pricing: $15/M input, $75/M output
+    # Extended thinking tokens are billed at output rate
     total_input = sum(l.get("input_tokens", 0) or 0 for l in logs)
     total_output = sum(l.get("output_tokens", 0) or 0 for l in logs)
-    estimated_cost_usd = (total_input * 3 / 1_000_000) + (total_output * 15 / 1_000_000)
+    estimated_cost_usd = (total_input * 15 / 1_000_000) + (total_output * 75 / 1_000_000)
     estimated_cost_inr = estimated_cost_usd * 85  # Approximate USD to INR
 
     return {
@@ -182,4 +191,44 @@ def usage(period="today"):
             "estimated_cost_usd": round(estimated_cost_usd, 2),
             "estimated_cost_inr": round(estimated_cost_inr, 2),
         },
+    }
+
+
+# ─── Alerts Endpoint ────────────────────────────────────────────────────────
+
+@frappe.whitelist()
+def alerts():
+    """Get alert status for the current user."""
+    user = frappe.session.user
+
+    if not _check_ai_access(user):
+        return {"alerts": [], "triggered_today": []}
+
+    # Active alerts
+    active_alerts = frappe.get_all(
+        "AI Alert Rule",
+        filters={"user": user, "active": 1},
+        fields=["name", "alert_name", "description", "frequency",
+                "threshold_operator", "threshold_value", "last_checked",
+                "last_triggered", "last_value", "trigger_count"],
+        order_by="creation desc",
+    )
+
+    # Today's triggers (from usage log)
+    today = frappe.utils.today()
+    triggered_today = frappe.get_all(
+        "AI Usage Log",
+        filters={
+            "user": user,
+            "model": "alert-engine",
+            "creation": [">=", today],
+        },
+        fields=["question", "creation"],
+        order_by="creation desc",
+    )
+
+    return {
+        "alerts": active_alerts,
+        "alert_count": len(active_alerts),
+        "triggered_today": triggered_today,
     }

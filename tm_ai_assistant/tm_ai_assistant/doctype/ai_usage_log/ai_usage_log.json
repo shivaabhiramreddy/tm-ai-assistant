@@ -30,7 +30,7 @@
             "fieldname": "model",
             "fieldtype": "Data",
             "label": "Model",
-            "default": "claude-sonnet-4-20250514"
+            "default": "claude-opus-4-5-20251101"
         },
         {
             "fieldname": "input_tokens",

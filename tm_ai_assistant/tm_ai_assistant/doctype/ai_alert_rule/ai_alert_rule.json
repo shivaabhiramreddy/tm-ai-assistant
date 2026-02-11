@@ -1,0 +1,161 @@
+{
+    "actions": [],
+    "autoname": "hash",
+    "creation": "2026-02-12 12:00:00.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "user", "alert_name", "description", "section_query",
+        "query_doctype", "query_field", "query_aggregation", "query_filters",
+        "section_threshold",
+        "threshold_operator", "threshold_value", "frequency",
+        "section_status",
+        "active", "last_checked", "last_triggered", "last_value", "trigger_count"
+    ],
+    "fields": [
+        {
+            "fieldname": "user",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "User",
+            "options": "User",
+            "reqd": 1
+        },
+        {
+            "fieldname": "alert_name",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Alert Name",
+            "reqd": 1
+        },
+        {
+            "fieldname": "description",
+            "fieldtype": "Small Text",
+            "label": "Description"
+        },
+        {
+            "fieldname": "section_query",
+            "fieldtype": "Section Break",
+            "label": "Query Configuration"
+        },
+        {
+            "fieldname": "query_doctype",
+            "fieldtype": "Data",
+            "label": "Monitored Doctype",
+            "reqd": 1
+        },
+        {
+            "fieldname": "query_field",
+            "fieldtype": "Data",
+            "label": "Monitored Field",
+            "reqd": 1
+        },
+        {
+            "fieldname": "query_aggregation",
+            "fieldtype": "Select",
+            "label": "Aggregation",
+            "options": "\nSUM\nCOUNT\nAVG\nMAX\nMIN",
+            "default": "SUM"
+        },
+        {
+            "fieldname": "query_filters",
+            "fieldtype": "JSON",
+            "label": "Query Filters",
+            "description": "JSON object with filter criteria"
+        },
+        {
+            "fieldname": "section_threshold",
+            "fieldtype": "Section Break",
+            "label": "Threshold"
+        },
+        {
+            "fieldname": "threshold_operator",
+            "fieldtype": "Select",
+            "label": "Operator",
+            "options": "\n>\n<\n>=\n<=\n=\n!=",
+            "default": ">",
+            "reqd": 1
+        },
+        {
+            "fieldname": "threshold_value",
+            "fieldtype": "Float",
+            "label": "Threshold Value",
+            "reqd": 1
+        },
+        {
+            "fieldname": "frequency",
+            "fieldtype": "Select",
+            "label": "Check Frequency",
+            "options": "\nhourly\ndaily\nweekly",
+            "default": "daily",
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "section_status",
+            "fieldtype": "Section Break",
+            "label": "Status"
+        },
+        {
+            "fieldname": "active",
+            "fieldtype": "Check",
+            "label": "Active",
+            "default": "1",
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "last_checked",
+            "fieldtype": "Datetime",
+            "label": "Last Checked",
+            "read_only": 1
+        },
+        {
+            "fieldname": "last_triggered",
+            "fieldtype": "Datetime",
+            "label": "Last Triggered",
+            "read_only": 1
+        },
+        {
+            "fieldname": "last_value",
+            "fieldtype": "Float",
+            "label": "Last Computed Value",
+            "read_only": 1
+        },
+        {
+            "fieldname": "trigger_count",
+            "fieldtype": "Int",
+            "label": "Times Triggered",
+            "default": "0",
+            "read_only": 1
+        }
+    ],
+    "index_web_pages_for_search": 0,
+    "is_submittable": 0,
+    "links": [],
+    "modified": "2026-02-12 12:00:00.000000",
+    "modified_by": "Administrator",
+    "module": "TM AI Assistant",
+    "name": "AI Alert Rule",
+    "naming_rule": "Random",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "export": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "write": 1
+        },
+        {
+            "create": 1,
+            "read": 1,
+            "write": 1,
+            "role": "All",
+            "if_owner": 1
+        }
+    ],
+    "sort_field": "creation",
+    "sort_order": "DESC",
+    "track_changes": 0
+}
