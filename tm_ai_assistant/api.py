@@ -1,5 +1,5 @@
 """
-TM AI Assistant — API Endpoints v2.0
+TM AI Assistant — API Endpoints v2.1
 ======================================
 Whitelisted API methods accessible from the mobile app.
 
@@ -9,9 +9,11 @@ Endpoints:
   GET  /api/method/tm_ai_assistant.api.usage         — Get usage stats for current user
   GET  /api/method/tm_ai_assistant.api.alerts        — Get alert status for current user
 
+v2.1 changes:
+- Model upgraded to Opus 4.6 ($5/M input, $25/M output — 3x cheaper than 4.5)
+- Adaptive thinking (Claude decides when/how much to think)
+
 v2 changes:
-- Model reference updated to Opus 4.5
-- Cost calculations updated for Opus pricing ($15/M input, $75/M output)
 - Added alerts endpoint
 - Added thinking token tracking
 """
@@ -96,7 +98,7 @@ def chat(message, session_id=None, conversation_history=None):
 
     # 6. Log usage
     try:
-        model = result.get("model", "claude-opus-4-5-20251101")
+        model = result.get("model", "claude-opus-4-6")
         usage_log = frappe.get_doc({
             "doctype": "AI Usage Log",
             "user": user,
@@ -173,11 +175,10 @@ def usage(period="today"):
         order_by="total_tokens desc",
     )
 
-    # Estimate cost — Claude Opus 4.5 pricing: $15/M input, $75/M output
-    # Extended thinking tokens are billed at output rate
+    # Estimate cost — Claude Opus 4.6 pricing: $5/M input, $25/M output
     total_input = sum(l.get("input_tokens", 0) or 0 for l in logs)
     total_output = sum(l.get("output_tokens", 0) or 0 for l in logs)
-    estimated_cost_usd = (total_input * 15 / 1_000_000) + (total_output * 75 / 1_000_000)
+    estimated_cost_usd = (total_input * 5 / 1_000_000) + (total_output * 25 / 1_000_000)
     estimated_cost_inr = estimated_cost_usd * 85  # Approximate USD to INR
 
     return {

@@ -1,12 +1,16 @@
 """
-TM AI Assistant — AI Engine v3.0
+TM AI Assistant — AI Engine v3.1
 ==================================
-Core AI logic with Claude Opus 4.5 + Extended Thinking.
+Core AI logic with Claude Opus 4.6 + Adaptive Thinking.
 Executes ERPNext data queries via tool_use and returns
 executive-grade formatted responses.
 
+v3.1 changes:
+- Upgraded to Claude Opus 4.6 (released Feb 5 2026) — smarter + cheaper ($5/$25 vs $15/$75)
+- Adaptive thinking (type: "adaptive") — Claude decides when and how much to think
+- 128K max output tokens supported
+
 v3 changes:
-- Upgraded to Claude Opus 4.5 with extended thinking (budget 8K tokens)
 - Added run_sql_query tool for complex analytical JOINs
 - Added get_financial_summary tool for pre-built financial dashboards
 - Added compare_periods tool for automatic period-over-period analysis
@@ -24,10 +28,9 @@ from datetime import datetime
 # ─── Configuration ───────────────────────────────────────────────────────────
 
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-DEFAULT_MODEL = "claude-opus-4-5-20251101"
+DEFAULT_MODEL = "claude-opus-4-6"
 ANTHROPIC_VERSION = "2023-06-01"
 MAX_TOKENS = 16384
-THINKING_BUDGET = 8192
 MAX_TOOL_ROUNDS = 8  # Opus can handle deeper multi-step analysis
 
 
@@ -40,22 +43,16 @@ def get_api_key():
 
 
 def get_model():
-    """Get model from site config, default to Opus 4.5."""
+    """Get model from site config, default to Opus 4.6."""
     return frappe.conf.get("ai_model", DEFAULT_MODEL)
-
-
-def get_thinking_budget():
-    """Get thinking token budget from site config."""
-    return int(frappe.conf.get("ai_thinking_budget", THINKING_BUDGET))
 
 
 # ─── Claude API Client ──────────────────────────────────────────────────────
 
 def call_claude(messages, system_prompt, tools=None):
-    """Make a single call to Claude API with extended thinking. Returns the full response dict."""
+    """Make a single call to Claude API with adaptive thinking. Returns the full response dict."""
     api_key = get_api_key()
     model = get_model()
-    thinking_budget = get_thinking_budget()
 
     payload = {
         "model": model,
@@ -63,8 +60,7 @@ def call_claude(messages, system_prompt, tools=None):
         "system": system_prompt,
         "messages": messages,
         "thinking": {
-            "type": "enabled",
-            "budget_tokens": thinking_budget,
+            "type": "adaptive",
         },
     }
     if tools:
@@ -646,7 +642,7 @@ def _parse_filters(filters):
 def process_chat(user, question, conversation_history=None):
     """
     Process a user's chat question through the full AI pipeline.
-    Uses Claude Opus 4.5 with extended thinking for deep analytical reasoning.
+    Uses Claude Opus 4.6 with adaptive thinking for deep analytical reasoning.
     """
     from .business_context import get_system_prompt
 
