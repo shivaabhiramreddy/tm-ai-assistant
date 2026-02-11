@@ -1,0 +1,84 @@
+{
+    "actions": [],
+    "autoname": "hash",
+    "creation": "2026-02-11 12:00:00.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": ["user", "session_id", "question", "model", "input_tokens", "output_tokens", "total_tokens", "tool_calls"],
+    "fields": [
+        {
+            "fieldname": "user",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "User",
+            "options": "User",
+            "reqd": 1
+        },
+        {
+            "fieldname": "session_id",
+            "fieldtype": "Data",
+            "label": "Session ID",
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "question",
+            "fieldtype": "Small Text",
+            "label": "Question",
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "model",
+            "fieldtype": "Data",
+            "label": "Model",
+            "default": "claude-sonnet-4-20250514"
+        },
+        {
+            "fieldname": "input_tokens",
+            "fieldtype": "Int",
+            "label": "Input Tokens",
+            "default": "0"
+        },
+        {
+            "fieldname": "output_tokens",
+            "fieldtype": "Int",
+            "label": "Output Tokens",
+            "default": "0"
+        },
+        {
+            "fieldname": "total_tokens",
+            "fieldtype": "Int",
+            "label": "Total Tokens",
+            "default": "0",
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "tool_calls",
+            "fieldtype": "Int",
+            "label": "Tool Calls Made",
+            "default": "0"
+        }
+    ],
+    "index_web_pages_for_search": 0,
+    "is_submittable": 0,
+    "links": [],
+    "modified": "2026-02-11 12:00:00.000000",
+    "modified_by": "Administrator",
+    "module": "TM AI Assistant",
+    "name": "AI Usage Log",
+    "naming_rule": "Random",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "export": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "write": 1
+        }
+    ],
+    "sort_field": "creation",
+    "sort_order": "DESC",
+    "track_changes": 0
+}

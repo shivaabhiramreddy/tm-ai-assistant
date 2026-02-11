@@ -1,0 +1,17 @@
+include MANIFEST.in
+include requirements.txt
+include *.md
+include *.py
+include *.txt
+include license.txt
+recursive-include tm_ai_assistant *.css
+recursive-include tm_ai_assistant *.csv
+recursive-include tm_ai_assistant *.html
+recursive-include tm_ai_assistant *.ico
+recursive-include tm_ai_assistant *.js
+recursive-include tm_ai_assistant *.json
+recursive-include tm_ai_assistant *.md
+recursive-include tm_ai_assistant *.png
+recursive-include tm_ai_assistant *.py
+recursive-include tm_ai_assistant *.svg
+recursive-include tm_ai_assistant *.txt

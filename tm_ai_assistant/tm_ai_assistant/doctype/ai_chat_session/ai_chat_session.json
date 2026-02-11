@@ -1,0 +1,87 @@
+{
+    "actions": [],
+    "autoname": "hash",
+    "creation": "2026-02-11 12:00:00.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": ["user", "session_id", "title", "status", "messages_json", "total_tokens", "started_at", "ended_at"],
+    "fields": [
+        {
+            "fieldname": "user",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "User",
+            "options": "User",
+            "reqd": 1
+        },
+        {
+            "fieldname": "session_id",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Session ID",
+            "unique": 1
+        },
+        {
+            "fieldname": "title",
+            "fieldtype": "Data",
+            "label": "Title",
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "status",
+            "fieldtype": "Select",
+            "label": "Status",
+            "options": "Active\nClosed",
+            "default": "Active",
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "messages_json",
+            "fieldtype": "JSON",
+            "label": "Messages (JSON)",
+            "hidden": 1
+        },
+        {
+            "fieldname": "total_tokens",
+            "fieldtype": "Int",
+            "label": "Total Tokens Used",
+            "default": "0"
+        },
+        {
+            "fieldname": "started_at",
+            "fieldtype": "Datetime",
+            "label": "Started At"
+        },
+        {
+            "fieldname": "ended_at",
+            "fieldtype": "Datetime",
+            "label": "Ended At"
+        }
+    ],
+    "index_web_pages_for_search": 0,
+    "is_submittable": 0,
+    "links": [],
+    "modified": "2026-02-11 12:00:00.000000",
+    "modified_by": "Administrator",
+    "module": "TM AI Assistant",
+    "name": "AI Chat Session",
+    "naming_rule": "Random",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 0,
+            "export": 1,
+            "print": 0,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "share": 0,
+            "write": 1
+        }
+    ],
+    "sort_field": "creation",
+    "sort_order": "DESC",
+    "track_changes": 0
+}
