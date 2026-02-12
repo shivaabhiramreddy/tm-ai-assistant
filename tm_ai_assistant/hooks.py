@@ -10,7 +10,7 @@ required_apps = ["frappe", "erpnext"]
 fixtures = [
     {
         "dt": "Custom Field",
-        "filters": [["fieldname", "=", "allow_ai_chat"]],
+        "filters": [["fieldname", "in", ["allow_ai_chat", "custom_ai_preferences"]]],
     }
 ]
 
@@ -24,12 +24,20 @@ override_whitelisted_methods = {}
 # Doc Events
 doc_events = {}
 
-# Scheduled Tasks — Alert evaluation engine
+# Scheduled Tasks — Alert engine + Proactive Intelligence (Sprint 7)
 scheduler_events = {
     "cron": {
         # Check hourly alerts every hour at minute 5
         "5 * * * *": [
             "tm_ai_assistant.alerts.check_hourly_alerts",
+        ],
+        # Sprint 7: Morning briefing at 7:00 AM IST daily
+        "0 7 * * *": [
+            "tm_ai_assistant.briefing.generate_morning_briefing",
+        ],
+        # Sprint 7: Check scheduled reports every hour at minute 15
+        "15 * * * *": [
+            "tm_ai_assistant.scheduled_reports.check_scheduled_reports",
         ],
     },
     "daily": [

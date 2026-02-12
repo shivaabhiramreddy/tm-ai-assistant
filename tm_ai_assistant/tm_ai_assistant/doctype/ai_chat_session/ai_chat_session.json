@@ -4,7 +4,7 @@
     "creation": "2026-02-11 12:00:00.000000",
     "doctype": "DocType",
     "engine": "InnoDB",
-    "field_order": ["user", "session_id", "title", "status", "messages_json", "total_tokens", "started_at", "ended_at"],
+    "field_order": ["user", "session_id", "title", "status", "messages_json", "total_tokens", "started_at", "ended_at", "session_summary"],
     "fields": [
         {
             "fieldname": "user",
@@ -56,6 +56,12 @@
             "fieldname": "ended_at",
             "fieldtype": "Datetime",
             "label": "Ended At"
+        },
+        {
+            "fieldname": "session_summary",
+            "fieldtype": "Small Text",
+            "label": "Session Summary",
+            "description": "Auto-generated summary of the conversation for memory across sessions"
         }
     ],
     "index_web_pages_for_search": 0,
@@ -77,6 +83,19 @@
             "read": 1,
             "report": 1,
             "role": "System Manager",
+            "share": 0,
+            "write": 1
+        },
+        {
+            "create": 1,
+            "delete": 0,
+            "email": 0,
+            "export": 0,
+            "if_owner": 1,
+            "print": 0,
+            "read": 1,
+            "report": 0,
+            "role": "All",
             "share": 0,
             "write": 1
         }

@@ -1,43 +1,231 @@
 """
-TM AI Assistant — AI Engine v3.2
+TM AI Assistant — AI Engine v5.0
 ==================================
-Core AI logic with Claude Opus 4.6 + Adaptive Thinking.
+Core AI logic with Claude + Adaptive Thinking.
 Executes ERPNext data queries via tool_use and returns
 executive-grade formatted responses.
 
-v3.2 changes:
-- Added export_pdf and export_excel tools (wired to exports.py)
-- Robust error handling: retry logic for transient API errors (429, 5xx)
-- No more frappe.throw() on API errors — returns clean error messages instead of HTTP 417
-- Graceful timeout and connection error handling
+v5.0 changes (Phase 4+5 — Rich I/O + Intelligence):
+- Smart query routing: simple queries → Sonnet (fast/cheap), complex → Opus (powerful)
+- Image/file support: process_chat and process_chat_stream accept image_data
+- generate_chart tool for inline mobile chart rendering
 
-v3.1 changes:
-- Upgraded to Claude Opus 4.6 (released Feb 5 2026) — smarter + cheaper ($5/$25 vs $15/$75)
-- Adaptive thinking (type: "adaptive") — Claude decides when and how much to think
-- 128K max output tokens supported
+v4.0 changes (Phase 3 — Response Streaming):
+- process_chat_stream() for background job streaming
+- _stream_claude_response() parses Claude SSE events, writes tokens to Redis
 
-v3 changes:
-- Added run_sql_query tool for complex analytical JOINs
-- Added get_financial_summary tool for pre-built financial dashboards
-- Added compare_periods tool for automatic period-over-period analysis
-- Added create_alert / list_alerts / delete_alert tools for alert management
-- Thinking blocks filtered from user-facing responses
-- Configurable model and thinking budget via site_config
+v3.4: Prompt caching (~90% input token savings)
+v3.3: SQL safety hardening, financial summary optimization
+v3.2: PDF/Excel export tools, retry logic
+v3.1: Opus 4.6 upgrade, adaptive thinking
+v3.0: SQL query tool, financial summary, alerts, compare_periods
 """
 
 import json
+import re
 import frappe
 import requests
-from datetime import datetime
 
 
 # ─── Configuration ───────────────────────────────────────────────────────────
 
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 DEFAULT_MODEL = "claude-opus-4-6"
+LIGHT_MODEL = "claude-sonnet-4-5-20250929"  # Faster/cheaper for simple queries
 ANTHROPIC_VERSION = "2023-06-01"
 MAX_TOKENS = 16384
 MAX_TOOL_ROUNDS = 8  # Opus can handle deeper multi-step analysis
+
+# ─── Token Budget System (Sprint 6A) ───────────────────────────────────────
+# Prevents runaway costs on complex queries by enforcing per-query token limits.
+# If budget exceeded mid-analysis, stops tool calls and synthesizes from available data.
+TOKEN_BUDGETS = {
+    "simple": 15_000,   # Simple lookups, counts, greetings
+    "medium": 35_000,   # Comparisons, trends, top-N queries
+    "complex": 60_000,  # Full dashboard, multi-tool analysis, strategy
+}
+
+
+# ─── Smart Query Routing (Phase 5.2) ────────────────────────────────────────
+
+# Patterns that indicate a SIMPLE query (use lighter model)
+_SIMPLE_PATTERNS = [
+    r"^(hi|hello|hey|thanks|thank you|ok|okay|yes|no|bye)\b",
+    r"^what (is|are) (the )?(total|count|number)",
+    r"^how many\b",
+    r"^show me (today|yesterday|recent)",
+    r"^(list|show|get) (my |all )?(alerts|sessions)",
+    r"^who (is|are)\b",
+    r"^(when|where) (is|was|did)\b",
+]
+
+# Patterns that indicate a COMPLEX query (use full model)
+_COMPLEX_PATTERNS = [
+    r"(compare|comparison|versus|vs\.?)\b",
+    r"(trend|forecast|predict|project)\b",
+    r"(why|explain|analyze|analysis|insight|recommend)\b",
+    r"(strateg|optimi|improv|suggest)\b",
+    r"(chart|graph|visual|report|pdf|excel|export)\b",
+    r"(month.over.month|year.over.year|quarter|YoY|MoM|QoQ)\b",
+    r"(dso|dpo|dio|working capital|cash flow|margin|ratio)\b",
+    r"(top \d+|bottom \d+|best|worst|rank)\b",
+    r"(if|what would|scenario|simulation)\b",
+]
+
+_simple_re = [re.compile(p, re.IGNORECASE) for p in _SIMPLE_PATTERNS]
+_complex_re = [re.compile(p, re.IGNORECASE) for p in _COMPLEX_PATTERNS]
+
+
+def classify_query(question):
+    """
+    Classify a user query as 'simple' or 'complex' for model routing.
+    Simple queries use the lighter (faster/cheaper) model.
+    Complex queries use the full Opus model.
+    Returns: ('simple', LIGHT_MODEL) or ('complex', DEFAULT_MODEL)
+    """
+    q = question.strip()
+
+    # Very short queries are usually simple
+    if len(q) < 20:
+        for pat in _simple_re:
+            if pat.search(q):
+                return "simple", LIGHT_MODEL
+
+    # Check for complex patterns first (they take priority)
+    for pat in _complex_re:
+        if pat.search(q):
+            return "complex", get_model()
+
+    # Check for simple patterns
+    for pat in _simple_re:
+        if pat.search(q):
+            return "simple", LIGHT_MODEL
+
+    # Default: use full model for anything ambiguous
+    return "complex", get_model()
+
+
+# ─── Clarification Engine (Sprint 6B) ────────────────────────────────────────
+# Classifies queries as CLEAR, LIKELY_CLEAR, or AMBIGUOUS.
+# For ambiguous queries, returns clarification options as tappable chips.
+
+# Patterns that indicate the query is AMBIGUOUS (needs clarification)
+_AMBIGUOUS_PATTERNS = [
+    (r"^(show|get|give|tell)\s+(me\s+)?(something|stuff|things|info|data|details)\b",
+     "What specifically would you like to see?",
+     ["Today's sales summary", "Outstanding receivables", "Inventory status", "Business pulse"]),
+    (r"^(what|how)\s+(about|is)\s+(the\s+)?(business|company|status|situation)\b",
+     "Which aspect of the business?",
+     ["Revenue & sales today", "Cash flow & payments", "Inventory levels", "Full business dashboard"]),
+    (r"^report\b",
+     "What kind of report would you like?",
+     ["Sales report this month", "Financial summary", "Inventory valuation", "Receivables aging"]),
+    (r"^(compare|comparison)\b(?!.*\b(with|vs|to|and|between)\b)",
+     "Compare what with what?",
+     ["This month vs last month sales", "This quarter vs same quarter last year", "Territory-wise comparison"]),
+    (r"^(update|status)\b$",
+     "Status of what?",
+     ["Pending approvals", "Today's orders", "Dispatch status", "Payment collections"]),
+]
+
+_ambiguous_re = [(re.compile(p, re.IGNORECASE), q, opts) for p, q, opts in _AMBIGUOUS_PATTERNS]
+
+
+def classify_and_clarify(question):
+    """
+    Sprint 6B: Check if a query is ambiguous and needs clarification.
+
+    Returns:
+        dict with:
+        - needs_clarification (bool): True if query is ambiguous
+        - clarification_question (str): Question to ask the user
+        - options (list): Tappable option labels
+        - confidence (str): "clear", "likely_clear", or "ambiguous"
+    """
+    q = question.strip()
+
+    # Very short queries (< 10 chars) that aren't greetings are likely ambiguous
+    if len(q) < 10 and not re.match(r"^(hi|hello|hey|thanks|bye|ok|yes|no)\b", q, re.IGNORECASE):
+        return {
+            "needs_clarification": True,
+            "clarification_question": "Could you be more specific?",
+            "options": ["Today's business pulse", "Outstanding receivables", "Pending approvals", "Sales this month"],
+            "confidence": "ambiguous",
+        }
+
+    # Check against known ambiguous patterns
+    for pat, clarify_q, options in _ambiguous_re:
+        if pat.search(q):
+            return {
+                "needs_clarification": True,
+                "clarification_question": clarify_q,
+                "options": options,
+                "confidence": "ambiguous",
+            }
+
+    # Query has enough specificity — let it through
+    return {
+        "needs_clarification": False,
+        "clarification_question": None,
+        "options": [],
+        "confidence": "clear",
+    }
+
+
+# ─── Plan Cache (Sprint 6B) ─────────────────────────────────────────────────
+# Caches execution plans for common query patterns.
+# If a query matches a cached pattern, skip the planning LLM call and reuse.
+
+_PLAN_CACHE = {
+    # Pattern → pre-built tool sequence (avoids an LLM round for common queries)
+    r"(business\s+)?pulse|dashboard|overview|briefing": {
+        "plan": "financial_summary",
+        "tools": ["get_financial_summary"],
+        "description": "Pre-cached: business pulse via financial summary tool",
+    },
+    r"(outstanding\s+)?receivables?\s*(aging)?": {
+        "plan": "receivables_query",
+        "tools": ["run_sql_query"],
+        "query_hint": "SELECT customer, outstanding_amount FROM `tabSales Invoice` WHERE outstanding_amount > 0 AND docstatus=1 ORDER BY outstanding_amount DESC LIMIT 20",
+    },
+    r"(pending\s+)?approvals?": {
+        "plan": "approvals_query",
+        "tools": ["query_records"],
+        "query_hint": "Check Sales Order, Sales Invoice, Purchase Receipt, Payment Proposal with workflow_state containing 'Pending'",
+    },
+    r"(today|yesterday)['s]*\s+sales(\s+summary)?": {
+        "plan": "daily_sales",
+        "tools": ["run_sql_query"],
+        "query_hint": "SELECT SUM(grand_total) as total, COUNT(*) as count FROM `tabSales Invoice` WHERE posting_date='{date}' AND docstatus=1",
+    },
+    r"(dso|days?\s+sales?\s+outstanding)": {
+        "plan": "dso_calculation",
+        "tools": ["get_financial_summary"],
+        "description": "DSO is included in the financial summary tool output",
+    },
+    r"(low\s+stock|reorder|stock\s+alert)": {
+        "plan": "low_stock",
+        "tools": ["run_sql_query"],
+        "query_hint": "SELECT item_code, item_name, actual_qty, reorder_level FROM `tabBin` WHERE actual_qty < reorder_level AND reorder_level > 0",
+    },
+}
+
+_plan_cache_re = [(re.compile(p, re.IGNORECASE), v) for p, v in _PLAN_CACHE.items()]
+
+
+def get_cached_plan(question):
+    """
+    Sprint 6B: Check if a query matches a cached execution plan.
+    Returns the cached plan dict if matched, None otherwise.
+
+    The cached plan provides hints to Claude about which tools to use,
+    reducing unnecessary planning tokens.
+    """
+    q = question.strip()
+    for pat, plan in _plan_cache_re:
+        if pat.search(q):
+            return plan
+    return None
 
 
 def get_api_key():
@@ -55,30 +243,44 @@ def get_model():
 
 # ─── Claude API Client ──────────────────────────────────────────────────────
 
-def call_claude(messages, system_prompt, tools=None):
+def call_claude(messages, system_prompt, tools=None, model_override=None):
     """
     Make a single call to Claude API with adaptive thinking.
     Returns the full response dict.
     Includes retry logic for transient errors and clean error handling.
+    model_override: if provided, use this model instead of default (for smart routing).
     """
     api_key = get_api_key()
-    model = get_model()
+    model = model_override or get_model()
 
+    # Prompt caching: system prompt (~8K tokens) cached for 5 min
+    # Saves ~90% on input tokens for subsequent requests within the window
     payload = {
         "model": model,
         "max_tokens": MAX_TOKENS,
-        "system": system_prompt,
+        "system": [
+            {
+                "type": "text",
+                "text": system_prompt,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ],
         "messages": messages,
         "thinking": {
             "type": "adaptive",
         },
     }
     if tools:
-        payload["tools"] = tools
+        # Cache tool definitions too (~2K tokens)
+        cached_tools = [t.copy() for t in tools]
+        if cached_tools:
+            cached_tools[-1] = {**cached_tools[-1], "cache_control": {"type": "ephemeral"}}
+        payload["tools"] = cached_tools
 
     headers = {
         "x-api-key": api_key,
         "anthropic-version": ANTHROPIC_VERSION,
+        "anthropic-beta": "prompt-caching-2024-07-31",
         "content-type": "application/json",
     }
 
@@ -410,6 +612,123 @@ ERPNEXT_TOOLS = [
             "required": ["title", "data"],
         },
     },
+    {
+        "name": "generate_chart",
+        "description": (
+            "Generate a visual chart that will be rendered inline in the mobile app. "
+            "Use this when the user asks to 'show me a chart', 'visualize', 'graph', or when "
+            "presenting comparative data that benefits from visual representation. "
+            "Supported types: bar (vertical), horizontal_bar, line. "
+            "The chart is rendered natively in the app — no image generation needed. "
+            "IMPORTANT: Include the chart JSON in your response wrapped in a ```chart code block."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": ["bar", "horizontal_bar", "line"],
+                    "description": "Chart type. Use horizontal_bar for many labels, bar for few, line for trends.",
+                },
+                "title": {"type": "string", "description": "Chart title (e.g. 'Monthly Sales Trend')"},
+                "labels": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Category labels (x-axis for bar, y-axis for horizontal_bar)",
+                },
+                "datasets": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "label": {"type": "string"},
+                            "data": {"type": "array", "items": {"type": "number"}},
+                            "color": {"type": "string", "description": "Hex color (optional, default green)"},
+                        },
+                        "required": ["label", "data"],
+                    },
+                    "description": "One or more data series",
+                },
+            },
+            "required": ["type", "title", "labels", "datasets"],
+        },
+    },
+    # ─── Write Action Tools (Sprint 8) ─────────────────────────────────────
+    {
+        "name": "create_draft_document",
+        "description": (
+            "Create a DRAFT document in ERPNext. The document will NOT be submitted — "
+            "it will be saved as Draft (docstatus=0) for the user to review and submit manually. "
+            "Supported doctypes: Sales Order, Sales Invoice, Purchase Order, Payment Entry, Stock Entry, Journal Entry. "
+            "ALWAYS confirm with the user before creating any document."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "doctype": {
+                    "type": "string",
+                    "description": "The ERPNext doctype to create",
+                    "enum": ["Sales Order", "Sales Invoice", "Purchase Order",
+                             "Payment Entry", "Stock Entry", "Journal Entry"],
+                },
+                "values": {
+                    "type": "object",
+                    "description": "Field values for the document. Must include all mandatory fields for the doctype.",
+                },
+            },
+            "required": ["doctype", "values"],
+        },
+    },
+    {
+        "name": "execute_workflow_action",
+        "description": (
+            "Execute a workflow action on a document (e.g., Approve, Reject, Submit for Approval). "
+            "ALWAYS confirm with the user before executing any workflow action. "
+            "Only works on documents that have ERPNext workflows configured."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "doctype": {"type": "string", "description": "The ERPNext doctype"},
+                "docname": {"type": "string", "description": "The document name/ID"},
+                "action": {"type": "string", "description": "The workflow action to execute (e.g., 'Approve', 'Reject')"},
+            },
+            "required": ["doctype", "docname", "action"],
+        },
+    },
+    {
+        "name": "schedule_report",
+        "description": (
+            "Schedule a recurring report to be auto-generated and emailed. "
+            "The user specifies what report they want, how often, and who should receive it."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "report_name": {"type": "string", "description": "Human-friendly name for the report"},
+                "report_query": {"type": "string", "description": "Natural language query that will be run to generate the report"},
+                "frequency": {"type": "string", "enum": ["daily", "weekly", "monthly"], "description": "How often to generate"},
+                "export_format": {"type": "string", "enum": ["pdf", "excel"], "description": "Output format"},
+                "email_recipients": {"type": "string", "description": "Comma-separated email addresses (optional, owner always included)"},
+            },
+            "required": ["report_name", "report_query", "frequency"],
+        },
+    },
+    {
+        "name": "save_user_preference",
+        "description": (
+            "Save a user preference that the AI will remember across sessions. "
+            "Examples: preferred currency format, favorite metrics, default date range."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "key": {"type": "string", "description": "Preference key (e.g., 'currency_format', 'default_company')"},
+                "value": {"type": "string", "description": "Preference value"},
+            },
+            "required": ["key", "value"],
+        },
+    },
 ]
 
 
@@ -445,6 +764,17 @@ def execute_tool(tool_name, tool_input, user):
             return _exec_export_pdf(tool_input)
         elif tool_name == "export_excel":
             return _exec_export_excel(tool_input)
+        elif tool_name == "generate_chart":
+            return _exec_generate_chart(tool_input)
+        # Sprint 8: Write action tools
+        elif tool_name == "create_draft_document":
+            return _exec_create_draft(tool_input, user)
+        elif tool_name == "execute_workflow_action":
+            return _exec_workflow_action(tool_input, user)
+        elif tool_name == "schedule_report":
+            return _exec_schedule_report(tool_input, user)
+        elif tool_name == "save_user_preference":
+            return _exec_save_preference(tool_input, user)
         else:
             return {"error": f"Unknown tool: {tool_name}"}
 
@@ -529,18 +859,45 @@ def _exec_sql_query(params):
         if f" {kw} " in f" {query_upper} " or query_upper.startswith(kw):
             return {"error": f"Dangerous keyword '{kw}' detected. Only read-only SELECT queries allowed."}
 
+    # Block access to sensitive tables
+    sensitive_tables = [
+        "tabUser", "tab__Auth", "tabUser Permission", "tabOAuth",
+        "tabAPI Key", "tabToken", "tabSession",
+    ]
+    for tbl in sensitive_tables:
+        if tbl.lower() in query.lower():
+            return {"error": f"Access to '{tbl}' is restricted for security reasons."}
+
+    # Auto-append LIMIT if not present (prevent runaway queries)
+    if "LIMIT" not in query_upper:
+        query = query.rstrip(";") + " LIMIT 5000"
+
     try:
+        # Execute with a 30-second timeout to prevent expensive queries
+        # Frappe's db.sql runs in the current transaction context
+        frappe.db.sql("SET SESSION MAX_EXECUTION_TIME = 30000")  # 30s in ms (MariaDB)
         result = frappe.db.sql(query, as_dict=True)
-        # Limit to 100 rows
-        truncated = len(result) > 100
-        data = result[:100]
+        frappe.db.sql("SET SESSION MAX_EXECUTION_TIME = 0")  # Reset to default
+
+        # Return max 200 rows to the AI
+        truncated = len(result) > 200
+        data = result[:200]
         return {"data": data, "count": len(data), "total_rows": len(result), "truncated": truncated}
     except Exception as e:
-        return {"error": f"SQL error: {str(e)[:200]}"}
+        error_str = str(e)[:200]
+        # Reset timeout on error too
+        try:
+            frappe.db.sql("SET SESSION MAX_EXECUTION_TIME = 0")
+        except Exception:
+            pass
+        return {"error": f"SQL error: {error_str}"}
 
 
 def _exec_financial_summary(params):
-    """Get a comprehensive financial summary for a company and period."""
+    """
+    Get a comprehensive financial summary for a company and period.
+    Optimized: 8 sequential queries → 3 batched queries (SI + PI + PE combined).
+    """
     company = params["company"]
     today = frappe.utils.today()
     from_date = params.get("from_date", frappe.utils.get_first_day(today).strftime("%Y-%m-%d"))
@@ -548,76 +905,73 @@ def _exec_financial_summary(params):
 
     summary = {}
 
-    # Revenue (Sales Invoices)
-    rev = frappe.db.sql("""
-        SELECT COALESCE(SUM(grand_total), 0) as total_revenue,
-               COALESCE(SUM(net_total), 0) as net_revenue,
-               COUNT(name) as invoice_count
+    # BATCH 1: All Sales Invoice metrics in ONE query (revenue + returns + receivables)
+    si_data = frappe.db.sql("""
+        SELECT
+            COALESCE(SUM(CASE WHEN is_return=0 AND posting_date BETWEEN %s AND %s THEN grand_total ELSE 0 END), 0) as total_revenue,
+            COALESCE(SUM(CASE WHEN is_return=0 AND posting_date BETWEEN %s AND %s THEN net_total ELSE 0 END), 0) as net_revenue,
+            SUM(CASE WHEN is_return=0 AND posting_date BETWEEN %s AND %s THEN 1 ELSE 0 END) as invoice_count,
+            COALESCE(SUM(CASE WHEN is_return=1 AND posting_date BETWEEN %s AND %s THEN ABS(grand_total) ELSE 0 END), 0) as total_returns,
+            SUM(CASE WHEN is_return=1 AND posting_date BETWEEN %s AND %s THEN 1 ELSE 0 END) as return_count,
+            COALESCE(SUM(CASE WHEN outstanding_amount > 0 THEN outstanding_amount ELSE 0 END), 0) as total_receivable
         FROM `tabSales Invoice`
-        WHERE company=%s AND docstatus=1 AND is_return=0
-        AND posting_date BETWEEN %s AND %s
-    """, (company, from_date, to_date), as_dict=True)
-    summary["revenue"] = rev[0] if rev else {}
+        WHERE company=%s AND docstatus=1
+    """, (from_date, to_date, from_date, to_date, from_date, to_date,
+          from_date, to_date, from_date, to_date, company), as_dict=True)
 
-    # Returns
-    ret = frappe.db.sql("""
-        SELECT COALESCE(SUM(ABS(grand_total)), 0) as total_returns,
-               COUNT(name) as return_count
-        FROM `tabSales Invoice`
-        WHERE company=%s AND docstatus=1 AND is_return=1
-        AND posting_date BETWEEN %s AND %s
-    """, (company, from_date, to_date), as_dict=True)
-    summary["returns"] = ret[0] if ret else {}
+    si = si_data[0] if si_data else {}
+    summary["revenue"] = {
+        "total_revenue": si.get("total_revenue", 0),
+        "net_revenue": si.get("net_revenue", 0),
+        "invoice_count": si.get("invoice_count", 0),
+    }
+    summary["returns"] = {
+        "total_returns": si.get("total_returns", 0),
+        "return_count": si.get("return_count", 0),
+    }
+    summary["receivables"] = {"total_receivable": si.get("total_receivable", 0)}
 
-    # Purchases
-    pur = frappe.db.sql("""
-        SELECT COALESCE(SUM(grand_total), 0) as total_purchases,
-               COUNT(name) as purchase_count
+    # BATCH 2: All Purchase Invoice metrics in ONE query (purchases + payables)
+    pi_data = frappe.db.sql("""
+        SELECT
+            COALESCE(SUM(CASE WHEN is_return=0 AND posting_date BETWEEN %s AND %s THEN grand_total ELSE 0 END), 0) as total_purchases,
+            SUM(CASE WHEN is_return=0 AND posting_date BETWEEN %s AND %s THEN 1 ELSE 0 END) as purchase_count,
+            COALESCE(SUM(CASE WHEN outstanding_amount > 0 THEN outstanding_amount ELSE 0 END), 0) as total_payable
         FROM `tabPurchase Invoice`
-        WHERE company=%s AND docstatus=1 AND is_return=0
-        AND posting_date BETWEEN %s AND %s
-    """, (company, from_date, to_date), as_dict=True)
-    summary["purchases"] = pur[0] if pur else {}
+        WHERE company=%s AND docstatus=1
+    """, (from_date, to_date, from_date, to_date, company), as_dict=True)
 
-    # Collections (Payments Received)
-    coll = frappe.db.sql("""
-        SELECT COALESCE(SUM(paid_amount), 0) as total_collections,
-               COUNT(name) as collection_count
+    pi = pi_data[0] if pi_data else {}
+    summary["purchases"] = {
+        "total_purchases": pi.get("total_purchases", 0),
+        "purchase_count": pi.get("purchase_count", 0),
+    }
+    summary["payables"] = {"total_payable": pi.get("total_payable", 0)}
+
+    # BATCH 3: All Payment Entry metrics in ONE query (collections + payments made)
+    pe_data = frappe.db.sql("""
+        SELECT
+            COALESCE(SUM(CASE WHEN payment_type='Receive' THEN paid_amount ELSE 0 END), 0) as total_collections,
+            SUM(CASE WHEN payment_type='Receive' THEN 1 ELSE 0 END) as collection_count,
+            COALESCE(SUM(CASE WHEN payment_type='Pay' THEN paid_amount ELSE 0 END), 0) as total_payments,
+            SUM(CASE WHEN payment_type='Pay' THEN 1 ELSE 0 END) as payment_count
         FROM `tabPayment Entry`
-        WHERE company=%s AND docstatus=1 AND payment_type='Receive'
+        WHERE company=%s AND docstatus=1
         AND posting_date BETWEEN %s AND %s
     """, (company, from_date, to_date), as_dict=True)
-    summary["collections"] = coll[0] if coll else {}
 
-    # Payments Made
-    paid = frappe.db.sql("""
-        SELECT COALESCE(SUM(paid_amount), 0) as total_payments,
-               COUNT(name) as payment_count
-        FROM `tabPayment Entry`
-        WHERE company=%s AND docstatus=1 AND payment_type='Pay'
-        AND posting_date BETWEEN %s AND %s
-    """, (company, from_date, to_date), as_dict=True)
-    summary["payments_made"] = paid[0] if paid else {}
-
-    # Outstanding Receivables (all time, current balance)
-    recv = frappe.db.sql("""
-        SELECT COALESCE(SUM(outstanding_amount), 0) as total_receivable
-        FROM `tabSales Invoice`
-        WHERE company=%s AND docstatus=1 AND outstanding_amount > 0
-    """, (company,), as_dict=True)
-    summary["receivables"] = recv[0] if recv else {}
-
-    # Outstanding Payables
-    payb = frappe.db.sql("""
-        SELECT COALESCE(SUM(outstanding_amount), 0) as total_payable
-        FROM `tabPurchase Invoice`
-        WHERE company=%s AND docstatus=1 AND outstanding_amount > 0
-    """, (company,), as_dict=True)
-    summary["payables"] = payb[0] if payb else {}
+    pe = pe_data[0] if pe_data else {}
+    summary["collections"] = {
+        "total_collections": pe.get("total_collections", 0),
+        "collection_count": pe.get("collection_count", 0),
+    }
+    summary["payments_made"] = {
+        "total_payments": pe.get("total_payments", 0),
+        "payment_count": pe.get("payment_count", 0),
+    }
 
     # Derived metrics
     total_rev = float(summary["revenue"].get("total_revenue", 0))
-    net_rev = float(summary["revenue"].get("net_revenue", 0))
     total_pur = float(summary["purchases"].get("total_purchases", 0))
 
     summary["derived"] = {
@@ -634,7 +988,7 @@ def _exec_financial_summary(params):
 
 
 def _exec_compare_periods(params):
-    """Compare a metric across two time periods."""
+    """Compare a metric across two time periods with safety validation."""
     doctype = params["doctype"]
     field = params["field"]
     agg = params["aggregation"]
@@ -644,6 +998,16 @@ def _exec_compare_periods(params):
     p2_to = params["period2_to"]
     extra = _parse_filters(params.get("extra_filters", {}))
     group_by = params.get("group_by", "")
+
+    # Validate field names — only allow safe alphanumeric + underscore identifiers
+    # This prevents SQL injection through field or group_by parameters
+    _safe_field = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+    if not _safe_field.match(field):
+        return {"error": f"Invalid field name: '{field}'. Only letters, numbers, and underscores allowed."}
+    if group_by and not _safe_field.match(group_by):
+        return {"error": f"Invalid group_by field: '{group_by}'. Only letters, numbers, and underscores allowed."}
+    if agg not in ("SUM", "COUNT", "AVG"):
+        return {"error": f"Invalid aggregation: '{agg}'. Must be SUM, COUNT, or AVG."}
 
     date_field = "posting_date"
     if doctype in ("Sales Order", "Purchase Order"):
@@ -711,7 +1075,25 @@ def _exec_create_alert(params, user):
         })
         doc.insert(ignore_permissions=True)
         frappe.db.commit()
-        return {"success": True, "alert_id": doc.name, "message": f"Alert '{params['alert_name']}' created successfully."}
+
+        # Sprint 7: Test-on-create — immediately show current value
+        test_result = {}
+        try:
+            from .alerts import test_alert
+            test_result = test_alert(doc.name)
+        except Exception:
+            pass
+
+        result = {
+            "success": True,
+            "alert_id": doc.name,
+            "message": f"Alert '{params['alert_name']}' created successfully.",
+        }
+        if test_result.get("success"):
+            result["current_value"] = test_result.get("formatted_value", "")
+            result["would_trigger_now"] = test_result.get("would_trigger", False)
+            result["test_message"] = test_result.get("message", "")
+        return result
     except Exception as e:
         return {"error": f"Failed to create alert: {str(e)[:200]}"}
 
@@ -796,6 +1178,29 @@ def _exec_export_excel(params):
         return {"error": f"Failed to generate Excel: {str(e)[:200]}"}
 
 
+def _exec_generate_chart(params):
+    """
+    Generate chart — returns the config back to Claude so it can embed it
+    as a ```chart code block in its response text. The mobile app frontend
+    parses these blocks and renders native charts.
+    """
+    return {
+        "success": True,
+        "chart_json": json.dumps({
+            "type": params.get("type", "bar"),
+            "title": params.get("title", ""),
+            "labels": params.get("labels", []),
+            "datasets": params.get("datasets", []),
+        }),
+        "instruction": (
+            "Include this chart in your response by wrapping the chart_json "
+            "value in a ```chart code block, like:\n"
+            "```chart\n{...the chart JSON...}\n```\n"
+            "The mobile app will render it as a native visual chart."
+        ),
+    }
+
+
 def _parse_filters(filters):
     if not filters:
         return {}
@@ -805,27 +1210,364 @@ def _parse_filters(filters):
     return parsed
 
 
+# ─── Write Action Executors (Sprint 8) ──────────────────────────────────────
+
+# Doctypes that can be created as drafts via the AI
+_DRAFT_ALLOWED_DOCTYPES = {
+    "Sales Order", "Sales Invoice", "Purchase Order",
+    "Payment Entry", "Stock Entry", "Journal Entry",
+}
+
+# Mandatory fields per doctype that must be present in values
+_DRAFT_MANDATORY = {
+    "Sales Order": ["customer", "company", "delivery_date"],
+    "Sales Invoice": ["customer", "company"],
+    "Purchase Order": ["supplier", "company"],
+    "Payment Entry": ["payment_type", "party_type", "party", "company", "paid_amount"],
+    "Stock Entry": ["stock_entry_type", "company"],
+    "Journal Entry": ["company"],
+}
+
+
+def _exec_create_draft(params, user):
+    """
+    Create a DRAFT document (docstatus=0) in ERPNext.
+    The document is saved but NOT submitted — the user must review and submit manually.
+    """
+    doctype = params.get("doctype")
+    values = params.get("values", {})
+
+    if doctype not in _DRAFT_ALLOWED_DOCTYPES:
+        return {"error": f"Cannot create drafts for '{doctype}'. Allowed: {', '.join(sorted(_DRAFT_ALLOWED_DOCTYPES))}"}
+
+    # Check mandatory fields
+    missing = []
+    for field in _DRAFT_MANDATORY.get(doctype, []):
+        if field not in values or not values[field]:
+            missing.append(field)
+    if missing:
+        return {"error": f"Missing mandatory fields for {doctype}: {', '.join(missing)}"}
+
+    try:
+        doc = frappe.new_doc(doctype)
+        for field, value in values.items():
+            if field == "docstatus":
+                continue  # Never allow setting docstatus via this tool
+            if field == "items" and isinstance(value, list):
+                # Handle child table items
+                for item_row in value:
+                    row = doc.append("items", {})
+                    for k, v in item_row.items():
+                        row.set(k, v)
+            elif field == "accounts" and isinstance(value, list):
+                # Journal Entry accounts child table
+                for acct_row in value:
+                    row = doc.append("accounts", {})
+                    for k, v in acct_row.items():
+                        row.set(k, v)
+            else:
+                doc.set(field, value)
+
+        doc.docstatus = 0  # Force draft
+        doc.insert(ignore_permissions=False)  # Respect user permissions
+        frappe.db.commit()
+
+        return {
+            "success": True,
+            "doctype": doctype,
+            "name": doc.name,
+            "message": f"Draft {doctype} '{doc.name}' created successfully. The user can review and submit it from ERPNext.",
+        }
+    except frappe.ValidationError as e:
+        return {"error": f"Validation error: {str(e)[:300]}"}
+    except frappe.PermissionError:
+        return {"error": f"You don't have permission to create {doctype} documents."}
+    except Exception as e:
+        frappe.log_error(title=f"AI Draft Creation Error: {doctype}", message=str(e))
+        return {"error": f"Failed to create draft: {str(e)[:200]}"}
+
+
+def _exec_workflow_action(params, user):
+    """
+    Execute a workflow action on a document (e.g., Approve, Reject).
+    Uses ERPNext's native workflow system.
+    """
+    doctype = params.get("doctype")
+    docname = params.get("docname")
+    action = params.get("action")
+
+    if not all([doctype, docname, action]):
+        return {"error": "Missing required fields: doctype, docname, action"}
+
+    try:
+        doc = frappe.get_doc(doctype, docname)
+
+        # Check if the document has a workflow
+        workflow_name = frappe.get_value("Workflow", {"document_type": doctype, "is_active": 1}, "name")
+        if not workflow_name:
+            return {"error": f"No active workflow found for {doctype}."}
+
+        # Get available transitions for current state
+        from frappe.model.workflow import get_transitions
+        transitions = get_transitions(doc)
+        available_actions = [t.get("action") for t in transitions]
+
+        if action not in available_actions:
+            return {
+                "error": f"Action '{action}' not available. Current state: '{doc.workflow_state}'. Available actions: {', '.join(available_actions)}",
+            }
+
+        # Apply the workflow action
+        from frappe.model.workflow import apply_workflow
+        apply_workflow(doc, action)
+        frappe.db.commit()
+
+        return {
+            "success": True,
+            "doctype": doctype,
+            "name": docname,
+            "action": action,
+            "new_state": doc.workflow_state,
+            "message": f"{action} applied to {doctype} '{docname}'. New state: {doc.workflow_state}.",
+        }
+    except frappe.PermissionError:
+        return {"error": f"You don't have permission to perform '{action}' on this document."}
+    except Exception as e:
+        frappe.log_error(title=f"AI Workflow Action Error: {doctype}/{docname}", message=str(e))
+        return {"error": f"Failed to execute workflow action: {str(e)[:200]}"}
+
+
+def _exec_schedule_report(params, user):
+    """Create a scheduled report that auto-generates and emails on a recurring basis."""
+    report_name = params.get("report_name")
+    report_query = params.get("report_query")
+    frequency = params.get("frequency", "daily")
+    export_format = params.get("export_format", "pdf")
+    email_recipients = params.get("email_recipients", "")
+
+    if not report_name or not report_query:
+        return {"error": "Missing required fields: report_name, report_query"}
+
+    if frequency not in ("daily", "weekly", "monthly", "hourly"):
+        return {"error": f"Invalid frequency '{frequency}'. Use: daily, weekly, monthly, hourly."}
+
+    try:
+        doc = frappe.new_doc("AI Scheduled Report")
+        doc.user = user
+        doc.report_name = report_name
+        doc.report_query = report_query
+        doc.frequency = frequency
+        doc.export_format = export_format
+        doc.email_recipients = email_recipients
+        doc.active = 1
+        doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+
+        return {
+            "success": True,
+            "name": doc.name,
+            "message": f"Scheduled report '{report_name}' created. It will run {frequency} and be emailed to {email_recipients or user}.",
+        }
+    except Exception as e:
+        frappe.log_error(title="AI Schedule Report Error", message=str(e))
+        return {"error": f"Failed to schedule report: {str(e)[:200]}"}
+
+
+def _exec_save_preference(params, user):
+    """Save a user preference that persists across sessions."""
+    key = params.get("key")
+    value = params.get("value")
+
+    if not key:
+        return {"error": "Missing required field: key"}
+
+    try:
+        from .memory import save_user_preference
+        success = save_user_preference(user, key, value)
+        if success:
+            return {
+                "success": True,
+                "message": f"Preference saved: {key} = {value}. I'll remember this in future sessions.",
+            }
+        else:
+            return {"error": "Failed to save preference."}
+    except Exception as e:
+        frappe.log_error(title="AI Save Preference Error", message=str(e))
+        return {"error": f"Failed to save preference: {str(e)[:200]}"}
+
+
+# ─── Response Distillation (Sprint 6A) ──────────────────────────────────────
+# Strips irrelevant fields from tool results before feeding back to Claude.
+# This saves 15-30% of tokens per tool round by removing internal metadata.
+
+# Fields that are ALWAYS useful regardless of tool
+_ALWAYS_KEEP = {"name", "title", "status", "docstatus", "grand_total", "total",
+                "outstanding_amount", "customer", "supplier", "item_code", "item_name",
+                "qty", "rate", "amount", "posting_date", "transaction_date",
+                "workflow_state", "company", "warehouse", "territory"}
+
+# Fields to ALWAYS strip (internal metadata, never useful for analysis)
+_ALWAYS_STRIP = {"_user_tags", "_comments", "_assign", "_liked_by", "modified_by",
+                 "creation", "modified", "owner", "idx", "parent", "parentfield",
+                 "parenttype", "doctype", "_seen"}
+
+# Max records to send back to Claude (prevents huge tool results)
+_MAX_DISTILL_RECORDS = 100
+
+
+def _distill_tool_result(tool_name, tool_input, raw_result):
+    """
+    Distill a tool result to only the fields Claude needs for analysis.
+    Reduces token usage by 15-30% per tool round.
+
+    Strategy:
+    - query_records/run_sql_query: Strip internal fields, cap record count
+    - get_document: Strip metadata, keep business fields
+    - count_records/run_report: Return as-is (already compact)
+    - financial_summary/compare_periods: Return as-is (pre-formatted)
+    - create_alert/list_alerts/delete_alert: Return as-is (small payloads)
+    - export_pdf/export_excel/generate_chart: Return as-is (contains URLs)
+    """
+    if not isinstance(raw_result, dict):
+        return raw_result
+
+    # Tools that produce compact results — return unchanged
+    compact_tools = {"count_records", "create_alert", "list_alerts", "delete_alert",
+                     "export_pdf", "export_excel", "generate_chart",
+                     "get_financial_summary", "compare_periods", "run_report"}
+    if tool_name in compact_tools:
+        return raw_result
+
+    # query_records / run_sql_query — strip fields + cap records
+    if tool_name in ("query_records", "run_sql_query"):
+        records = raw_result.get("data") or raw_result.get("records") or raw_result.get("result")
+        if isinstance(records, list) and len(records) > 0:
+            # Determine which fields were explicitly requested
+            requested_fields = set()
+            if tool_input:
+                fields_str = tool_input.get("fields", "")
+                if isinstance(fields_str, str) and fields_str:
+                    requested_fields = {f.strip().split(" as ")[-1].strip().split(".")[-1]
+                                        for f in fields_str.split(",") if f.strip() != "*"}
+                elif isinstance(fields_str, list):
+                    requested_fields = {f.strip().split(" as ")[-1].strip().split(".")[-1]
+                                        for f in fields_str if isinstance(f, str)}
+
+            # If specific fields were requested, keep only those + always-keep
+            keep_fields = _ALWAYS_KEEP | requested_fields if requested_fields else None
+
+            distilled = []
+            for record in records[:_MAX_DISTILL_RECORDS]:
+                if isinstance(record, dict):
+                    clean = {}
+                    for k, v in record.items():
+                        if k in _ALWAYS_STRIP:
+                            continue
+                        if keep_fields and k not in keep_fields and k != "name":
+                            continue
+                        # Skip empty/null values to save tokens
+                        if v is None or v == "" or v == 0.0:
+                            continue
+                        clean[k] = v
+                    if clean:
+                        distilled.append(clean)
+                else:
+                    distilled.append(record)
+
+            # Build distilled result
+            result_key = "data" if "data" in raw_result else ("records" if "records" in raw_result else "result")
+            distilled_result = dict(raw_result)
+            distilled_result[result_key] = distilled
+            if len(records) > _MAX_DISTILL_RECORDS:
+                distilled_result["_truncated"] = True
+                distilled_result["_total_available"] = len(records)
+                distilled_result["_showing"] = _MAX_DISTILL_RECORDS
+            return distilled_result
+
+    # get_document — strip metadata fields
+    if tool_name == "get_document":
+        doc = raw_result.get("data") or raw_result
+        if isinstance(doc, dict):
+            clean = {k: v for k, v in doc.items()
+                     if k not in _ALWAYS_STRIP and v is not None and v != ""}
+            if "data" in raw_result:
+                return {"data": clean, "success": raw_result.get("success", True)}
+            return clean
+
+    return raw_result
+
+
+def _get_token_budget(question):
+    """
+    Determine the token budget for a query based on its complexity class.
+    Uses the same classify_query logic for consistency.
+    Returns the budget limit (int).
+    """
+    complexity, _ = classify_query(question)
+    if complexity == "simple":
+        return TOKEN_BUDGETS["simple"]
+    # Check for multi-part/dashboard queries
+    dashboard_keywords = ["pulse", "dashboard", "overview", "everything", "full report",
+                          "all metrics", "complete analysis", "briefing"]
+    q_lower = question.lower()
+    if any(kw in q_lower for kw in dashboard_keywords):
+        return TOKEN_BUDGETS["complex"]
+    return TOKEN_BUDGETS["medium"]
+
+
 # ─── Main Chat Handler ──────────────────────────────────────────────────────
 
-def process_chat(user, question, conversation_history=None):
+def process_chat(user, question, conversation_history=None, image_data=None):
     """
     Process a user's chat question through the full AI pipeline.
-    Uses Claude Opus 4.6 with adaptive thinking for deep analytical reasoning.
+    Uses smart routing: simple queries → Sonnet (fast/cheap), complex → Opus.
+    Supports multimodal messages (image + text) via image_data parameter.
+
+    image_data: optional dict with {"data": base64_str, "media_type": "image/jpeg"}
     """
     from .business_context import get_system_prompt
+
+    # Smart routing (Phase 5.2): pick model based on query complexity
+    # Images always use full model (Vision requires Opus-class model)
+    if image_data:
+        selected_model = get_model()
+    else:
+        _complexity, selected_model = classify_query(question)
 
     system_prompt = get_system_prompt(user)
     messages = []
     if conversation_history:
         messages.extend(conversation_history)
-    messages.append({"role": "user", "content": question})
+
+    # Multimodal message support (Phase 4.4: file upload + Vision)
+    if image_data:
+        messages.append({
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": image_data.get("media_type", "image/jpeg"),
+                        "data": image_data["data"],
+                    },
+                },
+                {"type": "text", "text": question},
+            ],
+        })
+    else:
+        messages.append({"role": "user", "content": question})
 
     total_input_tokens = 0
     total_output_tokens = 0
     tool_calls_made = 0
 
+    # Sprint 6A: Token budget tracking — stops tool calls if budget exceeded
+    token_budget = _get_token_budget(question)
+    budget_exceeded = False
+
     for round_num in range(MAX_TOOL_ROUNDS):
-        response = call_claude(messages, system_prompt, tools=ERPNEXT_TOOLS)
+        response = call_claude(messages, system_prompt, tools=ERPNEXT_TOOLS, model_override=selected_model)
 
         usage = response.get("usage", {})
         total_input_tokens += usage.get("input_tokens", 0)
@@ -835,6 +1577,19 @@ def process_chat(user, question, conversation_history=None):
         content_blocks = response.get("content", [])
 
         if stop_reason == "tool_use":
+            # Sprint 6A: Check token budget before allowing more tool calls
+            total_tokens_so_far = total_input_tokens + total_output_tokens
+            if total_tokens_so_far > token_budget:
+                budget_exceeded = True
+                # Force Claude to synthesize from data gathered so far
+                messages.append({"role": "assistant", "content": content_blocks})
+                messages.append({"role": "user", "content": [
+                    {"type": "tool_result", "tool_use_id": block["id"],
+                     "content": json.dumps({"note": "Token budget reached. Please synthesize your answer from the data already gathered."})}
+                    for block in content_blocks if block.get("type") == "tool_use"
+                ]})
+                continue  # Let Claude produce a final text response
+
             # Claude wants to query data — pass ALL content blocks (including thinking)
             messages.append({"role": "assistant", "content": content_blocks})
 
@@ -843,10 +1598,12 @@ def process_chat(user, question, conversation_history=None):
                 if block.get("type") == "tool_use":
                     tool_calls_made += 1
                     tool_result = execute_tool(block["name"], block["input"], user)
+                    # Sprint 6A: Distill tool results to save tokens
+                    distilled = _distill_tool_result(block["name"], block.get("input", {}), tool_result)
                     tool_results.append({
                         "type": "tool_result",
                         "tool_use_id": block["id"],
-                        "content": json.dumps(tool_result, default=str),
+                        "content": json.dumps(distilled, default=str),
                     })
 
             messages.append({"role": "user", "content": tool_results})
@@ -861,7 +1618,8 @@ def process_chat(user, question, conversation_history=None):
             return {
                 "response": text_response,
                 "tool_calls": tool_calls_made,
-                "model": get_model(),
+                "model": selected_model,
+                "budget_exceeded": budget_exceeded,
                 "usage": {
                     "input_tokens": total_input_tokens,
                     "output_tokens": total_output_tokens,
@@ -876,7 +1634,8 @@ def process_chat(user, question, conversation_history=None):
             return {
                 "response": text_response or "I wasn't able to complete that request. Please try again.",
                 "tool_calls": tool_calls_made,
-                "model": get_model(),
+                "model": selected_model,
+                "budget_exceeded": budget_exceeded,
                 "usage": {
                     "input_tokens": total_input_tokens,
                     "output_tokens": total_output_tokens,
@@ -887,10 +1646,363 @@ def process_chat(user, question, conversation_history=None):
     return {
         "response": "This query required too many data lookups. Try asking a simpler question.",
         "tool_calls": tool_calls_made,
-        "model": get_model(),
+        "model": selected_model,
+        "budget_exceeded": budget_exceeded,
         "usage": {
             "input_tokens": total_input_tokens,
             "output_tokens": total_output_tokens,
             "total_tokens": total_input_tokens + total_output_tokens,
         },
     }
+
+
+# ─── Streaming Chat Handler (Phase 3) ────────────────────────────────────────
+
+def _update_stream_cache(cache_key, **kwargs):
+    """Write current stream state to Redis cache for frontend polling."""
+    data = {
+        "status": kwargs.get("status", "streaming"),
+        "text": kwargs.get("text", ""),
+        "tool_status": kwargs.get("tool_status"),
+        "done": kwargs.get("done", False),
+        "error": kwargs.get("error"),
+        "usage": kwargs.get("usage", {}),
+        "tool_calls": kwargs.get("tool_calls", 0),
+        "session_id": kwargs.get("session_id", ""),
+        "session_title": kwargs.get("session_title", ""),
+        "message_count": kwargs.get("message_count", 0),
+        "daily_remaining": kwargs.get("daily_remaining", 0),
+    }
+    frappe.cache.set_value(cache_key, json.dumps(data), expires_in_sec=300)
+
+
+def _get_tool_label(tool_name, tool_input):
+    """Get a user-friendly label for a tool being executed."""
+    labels = {
+        "query_records": "Looking up {doctype}...",
+        "count_records": "Counting {doctype}...",
+        "get_document": "Fetching details...",
+        "run_report": "Running {report_name} report...",
+        "run_sql_query": "Analyzing data...",
+        "get_financial_summary": "Computing financial summary...",
+        "compare_periods": "Comparing periods...",
+        "create_alert": "Setting up alert...",
+        "list_alerts": "Checking alerts...",
+        "delete_alert": "Removing alert...",
+        "export_pdf": "Generating PDF...",
+        "export_excel": "Creating spreadsheet...",
+        "generate_chart": "Creating chart...",
+    }
+    template = labels.get(tool_name, "Processing...")
+    try:
+        return template.format(**tool_input)
+    except (KeyError, IndexError):
+        return template.split("{")[0].strip() + "..."
+
+
+def _stream_claude_response(messages, system_prompt, tools, cache_key, text_so_far, model_override=None):
+    """
+    Call Claude API with streaming enabled.
+    Parses SSE events, writes text tokens to Redis in real-time.
+    Returns result dict with accumulated text, content blocks, and usage.
+    """
+    api_key = get_api_key()
+    model = model_override or get_model()
+
+    payload = {
+        "model": model,
+        "max_tokens": MAX_TOKENS,
+        "stream": True,
+        "system": [
+            {
+                "type": "text",
+                "text": system_prompt,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ],
+        "messages": messages,
+        "thinking": {"type": "adaptive"},
+    }
+    if tools:
+        cached_tools = [t.copy() for t in tools]
+        if cached_tools:
+            cached_tools[-1] = {**cached_tools[-1], "cache_control": {"type": "ephemeral"}}
+        payload["tools"] = cached_tools
+
+    headers = {
+        "x-api-key": api_key,
+        "anthropic-version": ANTHROPIC_VERSION,
+        "anthropic-beta": "prompt-caching-2024-07-31",
+        "content-type": "application/json",
+    }
+
+    try:
+        resp = requests.post(ANTHROPIC_API_URL, json=payload, headers=headers,
+                             timeout=180, stream=True)
+    except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+        frappe.log_error(title="Claude Stream Connection Error", message=str(e)[:200])
+        error_msg = "I'm having trouble connecting right now. Please try again."
+        return {
+            "stop_reason": "end_turn",
+            "accumulated_text": (text_so_far + "\n\n" + error_msg) if text_so_far else error_msg,
+            "content_blocks": [{"type": "text", "text": error_msg}],
+            "input_tokens": 0,
+            "output_tokens": 0,
+        }
+
+    if resp.status_code != 200:
+        error_text = resp.text[:500]
+        frappe.log_error(title="Claude Stream API Error",
+                         message=f"Status {resp.status_code}: {error_text}")
+        error_msg = "I'm having trouble connecting right now. Please try again."
+        return {
+            "stop_reason": "end_turn",
+            "accumulated_text": (text_so_far + "\n\n" + error_msg) if text_so_far else error_msg,
+            "content_blocks": [{"type": "text", "text": error_msg}],
+            "input_tokens": 0,
+            "output_tokens": 0,
+        }
+
+    # Parse SSE events from Claude streaming response
+    accumulated_text = text_so_far
+    content_blocks = []
+    current_block = None
+    tool_input_json = ""
+    stop_reason = "end_turn"
+    input_tokens = 0
+    output_tokens = 0
+    last_update_len = len(accumulated_text)
+
+    for line in resp.iter_lines(decode_unicode=True):
+        if not line or not line.startswith("data: "):
+            continue
+
+        data_str = line[6:]
+        if data_str.strip() == "[DONE]":
+            break
+
+        try:
+            event = json.loads(data_str)
+        except json.JSONDecodeError:
+            continue
+
+        event_type = event.get("type", "")
+
+        if event_type == "message_start":
+            msg = event.get("message", {})
+            u = msg.get("usage", {})
+            input_tokens = u.get("input_tokens", 0)
+
+        elif event_type == "content_block_start":
+            block = event.get("content_block", {})
+            block_type = block.get("type", "")
+            if block_type == "text":
+                current_block = {"type": "text", "text": ""}
+            elif block_type == "tool_use":
+                current_block = {
+                    "type": "tool_use",
+                    "id": block.get("id", ""),
+                    "name": block.get("name", ""),
+                    "input": {},
+                }
+                tool_input_json = ""
+            elif block_type == "thinking":
+                current_block = {"type": "thinking", "thinking": ""}
+                _update_stream_cache(cache_key, status="thinking", text=accumulated_text)
+
+        elif event_type == "content_block_delta":
+            delta = event.get("delta", {})
+            delta_type = delta.get("type", "")
+
+            if delta_type == "text_delta" and current_block and current_block["type"] == "text":
+                new_text = delta.get("text", "")
+                current_block["text"] += new_text
+                accumulated_text += new_text
+                # Update Redis every ~30 chars for smooth streaming
+                if len(accumulated_text) - last_update_len >= 30:
+                    _update_stream_cache(cache_key, status="streaming", text=accumulated_text)
+                    last_update_len = len(accumulated_text)
+
+            elif delta_type == "input_json_delta" and current_block and current_block["type"] == "tool_use":
+                tool_input_json += delta.get("partial_json", "")
+
+            elif delta_type == "thinking_delta" and current_block and current_block.get("type") == "thinking":
+                current_block["thinking"] += delta.get("thinking", "")
+
+        elif event_type == "content_block_stop":
+            if current_block:
+                if current_block["type"] == "tool_use":
+                    try:
+                        current_block["input"] = json.loads(tool_input_json) if tool_input_json else {}
+                    except json.JSONDecodeError:
+                        current_block["input"] = {}
+                content_blocks.append(current_block)
+                current_block = None
+
+        elif event_type == "message_delta":
+            delta = event.get("delta", {})
+            stop_reason = delta.get("stop_reason", stop_reason)
+            u = event.get("usage", {})
+            output_tokens = u.get("output_tokens", output_tokens)
+
+        elif event_type == "message_stop":
+            break
+
+    # Final update with complete text for this round
+    _update_stream_cache(cache_key, status="streaming", text=accumulated_text)
+
+    return {
+        "stop_reason": stop_reason,
+        "accumulated_text": accumulated_text,
+        "content_blocks": content_blocks,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+    }
+
+
+def process_chat_stream(user, question, conversation_history=None, stream_id=None, image_data=None):
+    """
+    Streaming version of process_chat. Runs as a background job (RQ worker).
+    Streams tokens to Redis so frontend can poll for real-time updates.
+    Returns final result dict on completion.
+    Supports image_data for multimodal (Vision) queries.
+    """
+    from .business_context import get_system_prompt
+
+    cache_key = f"tm_ai_stream:{stream_id}"
+    full_text = ""
+
+    try:
+        frappe.set_user(user)
+
+        # Smart routing (Phase 5.2)
+        if image_data:
+            selected_model = get_model()
+        else:
+            _complexity, selected_model = classify_query(question)
+
+        system_prompt = get_system_prompt(user)
+
+        messages = []
+        if conversation_history:
+            messages.extend(conversation_history)
+
+        # Multimodal message support (Phase 4.4)
+        if image_data:
+            messages.append({
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": image_data.get("media_type", "image/jpeg"),
+                            "data": image_data["data"],
+                        },
+                    },
+                    {"type": "text", "text": question},
+                ],
+            })
+        else:
+            messages.append({"role": "user", "content": question})
+
+        total_input_tokens = 0
+        total_output_tokens = 0
+        tool_calls_made = 0
+
+        # Sprint 6A: Token budget tracking for streaming
+        token_budget = _get_token_budget(question)
+        budget_exceeded = False
+
+        _update_stream_cache(cache_key, status="thinking", text="")
+
+        for _round_num in range(MAX_TOOL_ROUNDS):
+            # Stream Claude response — tokens pushed to Redis in real-time
+            result = _stream_claude_response(
+                messages, system_prompt, ERPNEXT_TOOLS, cache_key, full_text,
+                model_override=selected_model,
+            )
+
+            total_input_tokens += result.get("input_tokens", 0)
+            total_output_tokens += result.get("output_tokens", 0)
+            full_text = result.get("accumulated_text", full_text)
+
+            if result.get("stop_reason") == "tool_use":
+                content_blocks = result.get("content_blocks", [])
+
+                # Sprint 6A: Check token budget before allowing more tool calls
+                total_tokens_so_far = total_input_tokens + total_output_tokens
+                if total_tokens_so_far > token_budget:
+                    budget_exceeded = True
+                    messages.append({"role": "assistant", "content": content_blocks})
+                    messages.append({"role": "user", "content": [
+                        {"type": "tool_result", "tool_use_id": block["id"],
+                         "content": json.dumps({"note": "Token budget reached. Please synthesize your answer from the data already gathered."})}
+                        for block in content_blocks if block.get("type") == "tool_use"
+                    ]})
+                    continue
+
+                # Process tool calls, then loop for another streaming round
+                messages.append({"role": "assistant", "content": content_blocks})
+
+                tool_results = []
+                for block in content_blocks:
+                    if block.get("type") == "tool_use":
+                        tool_calls_made += 1
+                        tool_label = _get_tool_label(block["name"], block.get("input", {}))
+                        _update_stream_cache(
+                            cache_key, status="tool_use",
+                            text=full_text, tool_status=tool_label,
+                            tool_calls=tool_calls_made,
+                        )
+                        tool_result = execute_tool(block["name"], block["input"], user)
+                        # Sprint 6A: Distill tool results to save tokens
+                        distilled = _distill_tool_result(block["name"], block.get("input", {}), tool_result)
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block["id"],
+                            "content": json.dumps(distilled, default=str),
+                        })
+
+                messages.append({"role": "user", "content": tool_results})
+
+            elif result.get("stop_reason") == "end_turn":
+                return {
+                    "response": full_text,
+                    "tool_calls": tool_calls_made,
+                    "model": selected_model,
+                    "usage": {
+                        "input_tokens": total_input_tokens,
+                        "output_tokens": total_output_tokens,
+                        "total_tokens": total_input_tokens + total_output_tokens,
+                    },
+                }
+            else:
+                return {
+                    "response": full_text or "I wasn't able to complete that request.",
+                    "tool_calls": tool_calls_made,
+                    "model": selected_model,
+                    "usage": {
+                        "input_tokens": total_input_tokens,
+                        "output_tokens": total_output_tokens,
+                        "total_tokens": total_input_tokens + total_output_tokens,
+                    },
+                }
+
+        # Max tool rounds exhausted
+        return {
+            "response": full_text or "This query required too many data lookups.",
+            "tool_calls": tool_calls_made,
+            "model": selected_model,
+            "usage": {
+                "input_tokens": total_input_tokens,
+                "output_tokens": total_output_tokens,
+                "total_tokens": total_input_tokens + total_output_tokens,
+            },
+        }
+
+    except Exception as e:
+        frappe.log_error(title="AI Stream Error", message=str(e))
+        _update_stream_cache(cache_key, status="error", text=full_text,
+                             error=str(e)[:200], done=True)
+        raise
