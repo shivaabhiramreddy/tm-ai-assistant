@@ -86,11 +86,21 @@ def chat(message, session_id=None, conversation_history=None):
     # 4. Process through AI engine
     from .ai_engine import process_chat
 
-    result = process_chat(
-        user=user,
-        question=message,
-        conversation_history=history,
-    )
+    try:
+        result = process_chat(
+            user=user,
+            question=message,
+            conversation_history=history,
+        )
+    except Exception as e:
+        frappe.log_error(title="AI Chat Processing Error", message=str(e))
+        # Return a clean error response instead of letting frappe.throw propagate as HTTP 417
+        result = {
+            "response": "I ran into a temporary issue processing your request. Please try again.",
+            "tool_calls": 0,
+            "model": "claude-opus-4-6",
+            "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+        }
 
     # 5. Create/update session
     if not session_id:

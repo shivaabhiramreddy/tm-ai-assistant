@@ -1,9 +1,15 @@
 """
-TM AI Assistant — AI Engine v3.1
+TM AI Assistant — AI Engine v3.2
 ==================================
 Core AI logic with Claude Opus 4.6 + Adaptive Thinking.
 Executes ERPNext data queries via tool_use and returns
 executive-grade formatted responses.
+
+v3.2 changes:
+- Added export_pdf and export_excel tools (wired to exports.py)
+- Robust error handling: retry logic for transient API errors (429, 5xx)
+- No more frappe.throw() on API errors — returns clean error messages instead of HTTP 417
+- Graceful timeout and connection error handling
 
 v3.1 changes:
 - Upgraded to Claude Opus 4.6 (released Feb 5 2026) — smarter + cheaper ($5/$25 vs $15/$75)
@@ -50,7 +56,11 @@ def get_model():
 # ─── Claude API Client ──────────────────────────────────────────────────────
 
 def call_claude(messages, system_prompt, tools=None):
-    """Make a single call to Claude API with adaptive thinking. Returns the full response dict."""
+    """
+    Make a single call to Claude API with adaptive thinking.
+    Returns the full response dict.
+    Includes retry logic for transient errors and clean error handling.
+    """
     api_key = get_api_key()
     model = get_model()
 
@@ -72,17 +82,76 @@ def call_claude(messages, system_prompt, tools=None):
         "content-type": "application/json",
     }
 
-    resp = requests.post(ANTHROPIC_API_URL, json=payload, headers=headers, timeout=180)
+    # Retry logic for transient errors (429, 5xx, network issues)
+    max_retries = 2
+    last_error = None
 
-    if resp.status_code != 200:
-        error_detail = resp.text[:500]
-        frappe.log_error(
-            title="Claude API Error",
-            message=f"Status {resp.status_code}: {error_detail}"
-        )
-        frappe.throw(f"AI service error (HTTP {resp.status_code}). Please try again.")
+    for attempt in range(max_retries + 1):
+        try:
+            resp = requests.post(ANTHROPIC_API_URL, json=payload, headers=headers, timeout=180)
 
-    return resp.json()
+            if resp.status_code == 200:
+                return resp.json()
+
+            error_detail = resp.text[:500]
+            frappe.log_error(
+                title=f"Claude API Error (attempt {attempt + 1})",
+                message=f"Status {resp.status_code}: {error_detail}"
+            )
+
+            # Retryable errors: 429 (rate limit), 529 (overloaded), 5xx (server errors)
+            if resp.status_code in (429, 500, 502, 503, 529) and attempt < max_retries:
+                import time
+                wait = (attempt + 1) * 3  # 3s, 6s
+                time.sleep(wait)
+                continue
+
+            # Non-retryable or exhausted retries — return a synthetic error response
+            # instead of frappe.throw() which causes HTTP 417 on the mobile app
+            error_msg = "I'm having trouble connecting to my AI service right now. "
+            if resp.status_code == 429:
+                error_msg += "Too many requests — please wait a moment and try again."
+            elif resp.status_code in (500, 502, 503, 529):
+                error_msg += "The service is temporarily overloaded. Please try again in a minute."
+            elif resp.status_code == 400:
+                error_msg += "There was an issue with this request. Try asking a shorter question."
+            else:
+                error_msg += "Please try again shortly."
+
+            # Return a synthetic "end_turn" response so process_chat handles it cleanly
+            return {
+                "content": [{"type": "text", "text": error_msg}],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 0, "output_tokens": 0},
+            }
+
+        except requests.exceptions.Timeout:
+            last_error = "Request timed out"
+            frappe.log_error(title=f"Claude API Timeout (attempt {attempt + 1})", message="180s timeout exceeded")
+            if attempt < max_retries:
+                import time
+                time.sleep(3)
+                continue
+
+        except requests.exceptions.ConnectionError as e:
+            last_error = str(e)[:200]
+            frappe.log_error(title=f"Claude API Connection Error (attempt {attempt + 1})", message=last_error)
+            if attempt < max_retries:
+                import time
+                time.sleep(3)
+                continue
+
+        except Exception as e:
+            last_error = str(e)[:200]
+            frappe.log_error(title="Claude API Unexpected Error", message=last_error)
+            break
+
+    # All retries exhausted — return graceful error
+    return {
+        "content": [{"type": "text", "text": "I'm temporarily unable to process your request. Please try again in a moment."}],
+        "stop_reason": "end_turn",
+        "usage": {"input_tokens": 0, "output_tokens": 0},
+    }
 
 
 # ─── ERPNext Tool Definitions ────────────────────────────────────────────────
@@ -290,6 +359,57 @@ ERPNEXT_TOOLS = [
             "required": ["alert_name"],
         },
     },
+    {
+        "name": "export_pdf",
+        "description": (
+            "Generate a branded PDF report from your analysis. Use this when the user asks for "
+            "a report, PDF, document, or anything they can download/share. "
+            "Pass a clear title and the full content in markdown format "
+            "(headers, tables, bold, bullet lists all work). Returns a download URL."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "description": "Report title (e.g. 'Receivables Aging Report — Feb 2026')"},
+                "content": {
+                    "type": "string",
+                    "description": (
+                        "Full report content in markdown. Include headers (##), tables (|col|col|), "
+                        "bold (**text**), bullet lists (- item). This gets converted to a styled PDF."
+                    )
+                },
+            },
+            "required": ["title", "content"],
+        },
+    },
+    {
+        "name": "export_excel",
+        "description": (
+            "Generate a branded Excel spreadsheet from tabular data. Use this when the user asks for "
+            "an Excel file, spreadsheet, or downloadable data table. "
+            "Pass structured data as a list of row objects. Returns a download URL."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "description": "Sheet/report title"},
+                "data": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": (
+                        "List of row objects. Each object is one row. "
+                        "Example: [{\"customer\": \"ABC\", \"amount\": 50000}, {\"customer\": \"XYZ\", \"amount\": 30000}]"
+                    )
+                },
+                "columns": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional column order. If omitted, auto-detected from data keys."
+                },
+            },
+            "required": ["title", "data"],
+        },
+    },
 ]
 
 
@@ -321,6 +441,10 @@ def execute_tool(tool_name, tool_input, user):
             return _exec_list_alerts(user)
         elif tool_name == "delete_alert":
             return _exec_delete_alert(tool_input, user)
+        elif tool_name == "export_pdf":
+            return _exec_export_pdf(tool_input)
+        elif tool_name == "export_excel":
+            return _exec_export_excel(tool_input)
         else:
             return {"error": f"Unknown tool: {tool_name}"}
 
@@ -626,6 +750,50 @@ def _exec_delete_alert(params, user):
     doc.save(ignore_permissions=True)
     frappe.db.commit()
     return {"success": True, "message": f"Alert '{doc.alert_name}' deactivated."}
+
+
+def _exec_export_pdf(params):
+    """Generate a branded PDF report from markdown content."""
+    try:
+        from .exports import export_pdf as _export_pdf
+        result = _export_pdf(
+            title=params["title"],
+            content=params["content"],
+        )
+        return {
+            "success": True,
+            "file_name": result.get("file_name", ""),
+            "download_url": result.get("download_url", ""),
+            "file_url": result.get("file_url", ""),
+            "message": f"PDF report '{params['title']}' generated successfully.",
+        }
+    except Exception as e:
+        frappe.log_error(title="AI Export PDF Error", message=str(e))
+        return {"error": f"Failed to generate PDF: {str(e)[:200]}"}
+
+
+def _exec_export_excel(params):
+    """Generate a branded Excel spreadsheet from tabular data."""
+    try:
+        from .exports import export_excel as _export_excel
+        data = params["data"]
+        columns = params.get("columns")
+        # exports.py handles both list and JSON string — pass as JSON string for safety
+        result = _export_excel(
+            title=params["title"],
+            data=json.dumps(data) if isinstance(data, list) else data,
+            columns=json.dumps(columns) if isinstance(columns, list) else columns,
+        )
+        return {
+            "success": True,
+            "file_name": result.get("file_name", ""),
+            "download_url": result.get("download_url", ""),
+            "file_url": result.get("file_url", ""),
+            "message": f"Excel report '{params['title']}' generated successfully.",
+        }
+    except Exception as e:
+        frappe.log_error(title="AI Export Excel Error", message=str(e))
+        return {"error": f"Failed to generate Excel: {str(e)[:200]}"}
 
 
 def _parse_filters(filters):
