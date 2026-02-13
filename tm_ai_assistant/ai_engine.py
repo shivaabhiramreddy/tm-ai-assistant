@@ -31,6 +31,7 @@ import requests
 
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 DEFAULT_MODEL = "claude-opus-4-6"
+FLASH_MODEL = "gemini-1.5-flash"
 LIGHT_MODEL = "claude-sonnet-4-5-20250929"  # Faster/cheaper for simple queries
 ANTHROPIC_VERSION = "2023-06-01"
 MAX_TOKENS = 16384
@@ -48,6 +49,12 @@ TOKEN_BUDGETS = {
 
 # ─── Smart Query Routing (Phase 5.2) ────────────────────────────────────────
 
+# Patterns that indicate a FLASH query (lowest cost, conversational)
+_FLASH_PATTERNS = [
+    r"^(hi|hello|hey|thanks|thank you|ok|okay|yes|no|bye)\b",
+    r"^who (is|are)\b",
+]
+
 # Patterns that indicate a SIMPLE query (use lighter model)
 _SIMPLE_PATTERNS = [
     r"^(hi|hello|hey|thanks|thank you|ok|okay|yes|no|bye)\b",
@@ -55,7 +62,7 @@ _SIMPLE_PATTERNS = [
     r"^how many\b",
     r"^show me (today|yesterday|recent)",
     r"^(list|show|get) (my |all )?(alerts|sessions)",
-    r"^who (is|are)\b",
+    r"^(list|show|get) (my |all )?(alerts|sessions)",
     r"^(when|where) (is|was|did)\b",
 ]
 
@@ -72,6 +79,7 @@ _COMPLEX_PATTERNS = [
     r"(if|what would|scenario|simulation)\b",
 ]
 
+_flash_re = [re.compile(p, re.IGNORECASE) for p in _FLASH_PATTERNS]
 _simple_re = [re.compile(p, re.IGNORECASE) for p in _SIMPLE_PATTERNS]
 _complex_re = [re.compile(p, re.IGNORECASE) for p in _COMPLEX_PATTERNS]
 
@@ -87,6 +95,9 @@ def classify_query(question):
 
     # Very short queries are usually simple
     if len(q) < 20:
+        for pat in _flash_re:
+            if pat.search(q):
+                return "flash", FLASH_MODEL
         for pat in _simple_re:
             if pat.search(q):
                 return "simple", LIGHT_MODEL
@@ -97,6 +108,9 @@ def classify_query(question):
             return "complex", get_model()
 
     # Check for simple patterns
+    for pat in _flash_re:
+        if pat.search(q):
+            return "flash", FLASH_MODEL
     for pat in _simple_re:
         if pat.search(q):
             return "simple", LIGHT_MODEL
