@@ -1973,6 +1973,33 @@ def process_chat_stream(user, question, conversation_history=None, stream_id=Non
         if conversation_history:
             messages.extend(conversation_history)
 
+        # Sprint 8: Gemini Flash Routing (Tier 1) - Streaming Support
+        if selected_model == FLASH_MODEL:
+            _update_stream_cache(cache_key, status="thinking", text="")
+            gemini_text = call_gemini(question)
+            
+            if gemini_text:
+                # Gemini is sync, so we verify quickly and mark stream as done
+                _update_stream_cache(
+                    cache_key, 
+                    status="done", 
+                    text=gemini_text, 
+                    done=True,
+                    usage={"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+                )
+                return {
+                    "response": gemini_text,
+                    "tool_calls": 0,
+                    "model": FLASH_MODEL,
+                    "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+                }
+            else:
+                # Fallback to Sonnet
+                frappe.logger("tm_ai_assistant").warning("Gemini failed in stream, falling back to Sonnet")
+                selected_model = LIGHT_MODEL
+                _update_stream_cache(cache_key, status="thinking", text="")
+
+
         # Multimodal message support (Phase 4.4)
         if image_data:
             messages.append({
