@@ -97,7 +97,11 @@ def classify_query(question):
     if len(q) < 20:
         for pat in _flash_re:
             if pat.search(q):
-                return "flash", FLASH_MODEL
+                if frappe.conf.get("gemini_api_key"):
+                    return "flash", FLASH_MODEL
+                else:
+                    frappe.logger("tm_ai_assistant").warning("Gemini Flash not configured, falling back to Sonnet")
+                    return "simple", LIGHT_MODEL
         for pat in _simple_re:
             if pat.search(q):
                 return "simple", LIGHT_MODEL
@@ -110,7 +114,11 @@ def classify_query(question):
     # Check for simple patterns
     for pat in _flash_re:
         if pat.search(q):
-            return "flash", FLASH_MODEL
+            if frappe.conf.get("gemini_api_key"):
+                return "flash", FLASH_MODEL
+            else:
+                frappe.logger("tm_ai_assistant").warning("Gemini Flash not configured, falling back to Sonnet")
+                return "simple", LIGHT_MODEL
     for pat in _simple_re:
         if pat.search(q):
             return "simple", LIGHT_MODEL
