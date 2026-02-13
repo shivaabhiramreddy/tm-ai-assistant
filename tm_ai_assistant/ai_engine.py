@@ -1537,6 +1537,53 @@ def _get_token_budget(question):
     return TOKEN_BUDGETS["medium"]
 
 
+
+# ─── Gemini Client (Flash Tier) ─────────────────────────────────────────────
+
+def call_gemini(prompt):
+    """
+    Call Google Gemini 1.5 Flash via REST API.
+    Used for lightweight queries (Tier 1).
+    Returns plain text response string.
+    """
+    api_key = frappe.conf.get("gemini_api_key")
+    if not api_key:
+        raise ValueError("Gemini API key not configured")
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{FLASH_MODEL}:generateContent?key={api_key}"
+    
+    payload = {
+        "contents": [{
+            "parts": [{"text": prompt}]
+        }],
+        "generationConfig": {
+            "temperature": 0.7,
+            "maxOutputTokens": 1000,
+        }
+    }
+    
+    try:
+        resp = requests.post(url, json=payload, timeout=30)
+        
+        if resp.status_code != 200:
+            frappe.log_error(title="Gemini API Error", message=f"Status {resp.status_code}: {resp.text[:500]}")
+            return None
+            
+        data = resp.json()
+        # Extract text from Gemini response structure
+        # { candidates: [ { content: { parts: [ { text: "..." } ] } } ] }
+        if "candidates" in data and data["candidates"]:
+            candidate = data["candidates"][0]
+            if "content" in candidate and "parts" in candidate["content"]:
+                return candidate["content"]["parts"][0]["text"]
+        
+        return None
+
+    except Exception as e:
+        frappe.log_error(title="Gemini Connection Error", message=str(e))
+        return None
+
+
 # ─── Main Chat Handler ──────────────────────────────────────────────────────
 
 def process_chat(user, question, conversation_history=None, image_data=None):
@@ -1560,6 +1607,23 @@ def process_chat(user, question, conversation_history=None, image_data=None):
     messages = []
     if conversation_history:
         messages.extend(conversation_history)
+
+    # Sprint 8: Gemini Flash Routing (Tier 1)
+    # If Flash selected, try Gemini first. Fallback to Claude if it fails.
+    if selected_model == FLASH_MODEL:
+        gemini_response = call_gemini(question)
+        if gemini_response:
+            return {
+                "response": gemini_response,
+                "tool_calls": 0,
+                "model": FLASH_MODEL,
+                "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+            }
+        else:
+            # Fallback to Sonnet if Gemini fails
+            frappe.logger("tm_ai_assistant").warning("Gemini failed, falling back to Sonnet")
+            selected_model = LIGHT_MODEL
+            # Continue to standard Claude flow...
 
     # Multimodal message support (Phase 4.4: file upload + Vision)
     if image_data:
