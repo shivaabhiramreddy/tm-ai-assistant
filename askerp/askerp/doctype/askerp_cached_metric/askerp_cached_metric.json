@@ -1,0 +1,166 @@
+{
+  "name": "AskERP Cached Metric",
+  "module": "AskERP",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "naming_rule": "By fieldname",
+  "autoname": "field:metric_name",
+  "field_order": [
+    "metric_name", "metric_label", "company",
+    "column_break_1",
+    "category", "enabled",
+    "section_query",
+    "query_type", "sql_query", "doctype_name", "field_name", "aggregation", "filters_json",
+    "section_result",
+    "cached_value", "cached_value_formatted",
+    "column_break_result",
+    "last_computed", "computation_time_ms", "error_message"
+  ],
+  "fields": [
+    {
+      "fieldname": "metric_name",
+      "fieldtype": "Data",
+      "label": "Metric Name",
+      "reqd": 1,
+      "unique": 1,
+      "description": "Unique identifier like 'revenue_today', 'total_receivables', 'pending_approvals'"
+    },
+    {
+      "fieldname": "metric_label",
+      "fieldtype": "Data",
+      "label": "Display Label",
+      "reqd": 1,
+      "description": "Human-readable label like 'Today's Revenue', 'Total Outstanding Receivables'"
+    },
+    {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "label": "Company",
+      "options": "Company",
+      "description": "Leave blank to compute for default company"
+    },
+    {
+      "fieldname": "column_break_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "category",
+      "fieldtype": "Select",
+      "label": "Category",
+      "options": "\nRevenue\nExpenses\nReceivables\nPayables\nInventory\nOrders\nCollections\nOperational\nCustom",
+      "default": "Custom"
+    },
+    {
+      "fieldname": "enabled",
+      "fieldtype": "Check",
+      "label": "Enabled",
+      "default": "1"
+    },
+    {
+      "fieldname": "section_query",
+      "fieldtype": "Section Break",
+      "label": "Query Definition"
+    },
+    {
+      "fieldname": "query_type",
+      "fieldtype": "Select",
+      "label": "Query Type",
+      "options": "SQL\nAggregation",
+      "default": "Aggregation",
+      "reqd": 1,
+      "description": "SQL = raw query, Aggregation = doctype + field + aggregation function"
+    },
+    {
+      "fieldname": "sql_query",
+      "fieldtype": "Code",
+      "label": "SQL Query",
+      "options": "SQL",
+      "depends_on": "eval:doc.query_type=='SQL'",
+      "description": "Read-only SELECT query. Must return a single numeric value in the first column."
+    },
+    {
+      "fieldname": "doctype_name",
+      "fieldtype": "Link",
+      "label": "DocType",
+      "options": "DocType",
+      "depends_on": "eval:doc.query_type=='Aggregation'",
+      "description": "ERPNext DocType to query"
+    },
+    {
+      "fieldname": "field_name",
+      "fieldtype": "Data",
+      "label": "Field",
+      "depends_on": "eval:doc.query_type=='Aggregation'",
+      "description": "Field to aggregate (e.g. 'grand_total', 'outstanding_amount')"
+    },
+    {
+      "fieldname": "aggregation",
+      "fieldtype": "Select",
+      "label": "Aggregation",
+      "options": "SUM\nCOUNT\nAVG\nMAX\nMIN",
+      "default": "SUM",
+      "depends_on": "eval:doc.query_type=='Aggregation'"
+    },
+    {
+      "fieldname": "filters_json",
+      "fieldtype": "Code",
+      "label": "Filters (JSON)",
+      "options": "JSON",
+      "description": "JSON filters. Supports dynamic tokens: {today}, {month_start}, {fy_start}, {last_month_start}, {last_month_end}"
+    },
+    {
+      "fieldname": "section_result",
+      "fieldtype": "Section Break",
+      "label": "Cached Result"
+    },
+    {
+      "fieldname": "cached_value",
+      "fieldtype": "Float",
+      "label": "Value",
+      "read_only": 1,
+      "precision": "2"
+    },
+    {
+      "fieldname": "cached_value_formatted",
+      "fieldtype": "Data",
+      "label": "Formatted Value",
+      "read_only": 1,
+      "description": "Auto-formatted with Indian notation (e.g. ₹45.23 L)"
+    },
+    {
+      "fieldname": "column_break_result",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "last_computed",
+      "fieldtype": "Datetime",
+      "label": "Last Computed",
+      "read_only": 1
+    },
+    {
+      "fieldname": "computation_time_ms",
+      "fieldtype": "Int",
+      "label": "Computation Time (ms)",
+      "read_only": 1
+    },
+    {
+      "fieldname": "error_message",
+      "fieldtype": "Small Text",
+      "label": "Last Error",
+      "read_only": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1
+    }
+  ],
+  "sort_field": "category",
+  "sort_order": "ASC",
+  "track_changes": 0,
+  "index_web_pages_for_search": 0
+}

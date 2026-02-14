@@ -1,0 +1,461 @@
+{
+  "name": "AskERP Business Profile",
+  "module": "AskERP",
+  "doctype": "DocType",
+  "document_type": "Setup",
+  "issingle": 1,
+  "engine": "InnoDB",
+  "field_order": [
+    "section_completeness",
+    "profile_completeness",
+    "completeness_html",
+
+    "section_company_identity",
+    "company_name",
+    "trading_name",
+    "column_break_identity_1",
+    "industry",
+    "industry_detail",
+    "column_break_identity_2",
+    "location",
+    "company_size",
+    "column_break_identity_3",
+    "currency",
+    "financial_year_start",
+
+    "section_multi_company",
+    "multi_company_enabled",
+    "companies_detail",
+
+    "section_products",
+    "what_you_sell",
+    "column_break_products",
+    "what_you_buy",
+    "unit_of_measure",
+    "pricing_model",
+
+    "section_sales",
+    "sales_channels",
+    "customer_types",
+    "column_break_sales",
+    "key_metrics_sales",
+
+    "section_operations",
+    "has_manufacturing",
+    "manufacturing_detail",
+    "column_break_operations",
+    "key_metrics_production",
+
+    "section_finance",
+    "accounting_focus",
+    "column_break_finance",
+    "payment_terms",
+    "financial_analysis_depth",
+
+    "section_terminology",
+    "custom_terminology",
+    "column_break_terminology",
+    "communication_style",
+    "primary_language",
+
+    "section_ai_behavior",
+    "response_length",
+    "number_format",
+    "column_break_behavior",
+    "executive_focus",
+    "restricted_data",
+
+    "section_personality",
+    "ai_personality",
+    "example_voice",
+
+    "section_custom_doctypes",
+    "custom_doctypes_info",
+
+    "section_industry_benchmarks",
+    "industry_benchmarks"
+  ],
+  "fields": [
+    {
+      "fieldname": "section_completeness",
+      "fieldtype": "Section Break",
+      "label": "Profile Completeness",
+      "description": "The more you fill in, the smarter your AI assistant becomes."
+    },
+    {
+      "fieldname": "profile_completeness",
+      "fieldtype": "Percent",
+      "label": "Completeness",
+      "read_only": 1,
+      "default": "0",
+      "description": "Automatically calculated based on filled sections"
+    },
+    {
+      "fieldname": "completeness_html",
+      "fieldtype": "HTML",
+      "label": "Completeness Guide",
+      "options": "<div id='askerp-completeness-guide'></div>"
+    },
+
+    {
+      "fieldname": "section_company_identity",
+      "fieldtype": "Section Break",
+      "label": "Section 1: Company Identity",
+      "description": "Basic information about your company. This helps the AI understand who you are and tailor responses to your context."
+    },
+    {
+      "fieldname": "company_name",
+      "fieldtype": "Data",
+      "label": "Company Name (Legal)",
+      "description": "Your company's full legal name as registered. Example: Acme Industries Private Limited",
+      "in_list_view": 1,
+      "reqd": 1
+    },
+    {
+      "fieldname": "trading_name",
+      "fieldtype": "Data",
+      "label": "Trading / Brand Name",
+      "description": "The name your customers know you by, if different from legal name. Example: Acme Tools"
+    },
+    {
+      "fieldname": "column_break_identity_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "industry",
+      "fieldtype": "Select",
+      "label": "Industry",
+      "options": "\nManufacturing\nRetail & Distribution\nServices & Consulting\nTrading\nAgriculture & Farming\nHealthcare & Pharma\nEducation\nConstruction & Real Estate\nFood & Beverage\nTextile & Apparel\nAutomotive\nIT & Software\nLogistics & Transport\nEnergy & Utilities\nOther",
+      "description": "Select the industry that best describes your business"
+    },
+    {
+      "fieldname": "industry_detail",
+      "fieldtype": "Small Text",
+      "label": "Industry Detail",
+      "description": "Describe your specific niche in 1-2 sentences. This is the most important field for AI accuracy.\n\nExample: We manufacture automotive spare parts (brake pads, clutch plates) for the Indian aftermarket, selling to distributors and retail shops across South India."
+    },
+    {
+      "fieldname": "column_break_identity_2",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "location",
+      "fieldtype": "Data",
+      "label": "Primary Location",
+      "description": "Where is your main office or facility? Example: Chennai, Tamil Nadu, India"
+    },
+    {
+      "fieldname": "company_size",
+      "fieldtype": "Select",
+      "label": "Company Size",
+      "options": "\n1-10 employees\n11-50 employees\n51-200 employees\n201-500 employees\n500+ employees",
+      "description": "Approximate number of employees"
+    },
+    {
+      "fieldname": "column_break_identity_3",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "currency",
+      "fieldtype": "Link",
+      "label": "Primary Currency",
+      "options": "Currency",
+      "description": "The currency used in most of your transactions"
+    },
+    {
+      "fieldname": "financial_year_start",
+      "fieldtype": "Select",
+      "label": "Financial Year Starts In",
+      "options": "\nJanuary\nApril\nJuly\nOctober",
+      "default": "April",
+      "description": "When does your financial year begin? India: April, US: January, UK: April"
+    },
+
+    {
+      "fieldname": "section_multi_company",
+      "fieldtype": "Section Break",
+      "label": "Multi-Company Setup",
+      "collapsible": 1,
+      "description": "If you operate multiple companies in ERPNext (e.g., one for manufacturing + one for sales)"
+    },
+    {
+      "fieldname": "multi_company_enabled",
+      "fieldtype": "Check",
+      "label": "We use multiple companies in ERPNext",
+      "default": "0",
+      "description": "Enable this if you have more than one Company in ERPNext and want the AI to query across all of them"
+    },
+    {
+      "fieldname": "companies_detail",
+      "fieldtype": "Text",
+      "label": "Company Details",
+      "depends_on": "eval:doc.multi_company_enabled",
+      "description": "List each company and its role (one per line). Example:\nAcme Industries Pvt Ltd — Manufacturing, procurement\nAcme Sales Pvt Ltd — Sales, distribution\n\nIMPORTANT: When users ask about 'total sales', the AI will query ALL companies and show combined + per-company breakdown."
+    },
+
+    {
+      "fieldname": "section_products",
+      "fieldtype": "Section Break",
+      "label": "Section 2: Products & Services",
+      "description": "What does your company sell and buy? This helps the AI understand your product catalog and supply chain."
+    },
+    {
+      "fieldname": "what_you_sell",
+      "fieldtype": "Text",
+      "label": "What You Sell",
+      "description": "List your main products or services, one per line. Be specific.\n\nExample:\n- Automotive brake pads (disc and drum)\n- Clutch plates and pressure plates\n- Suspension bushings\n- Brake shoes"
+    },
+    {
+      "fieldname": "column_break_products",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "what_you_buy",
+      "fieldtype": "Text",
+      "label": "What You Buy (Raw Materials / Inputs)",
+      "description": "List your main purchases or raw materials, one per line.\n\nExample:\n- Steel sheets (hot-rolled)\n- Brake friction material\n- Packaging cartons\n- Adhesives and bonding agents"
+    },
+    {
+      "fieldname": "unit_of_measure",
+      "fieldtype": "Data",
+      "label": "Primary Unit of Measure",
+      "description": "How do you measure what you sell? Example: Kg, Pieces, Liters, Metres, Bags, Tonnes"
+    },
+    {
+      "fieldname": "pricing_model",
+      "fieldtype": "Small Text",
+      "label": "Pricing Model",
+      "description": "How do you price your products? Example: Per piece, ex-factory. Transport extra. Different price lists for different regions."
+    },
+
+    {
+      "fieldname": "section_sales",
+      "fieldtype": "Section Break",
+      "label": "Section 3: Sales & Customers",
+      "description": "How do you sell and who are your customers? This helps the AI provide relevant sales analysis."
+    },
+    {
+      "fieldname": "sales_channels",
+      "fieldtype": "Text",
+      "label": "Sales Channels",
+      "description": "How do you reach your customers? One per line.\n\nExample:\n- Direct to factories and OEMs\n- Through 50+ authorized distributors\n- Online orders via our website\n- Export to 5 countries"
+    },
+    {
+      "fieldname": "customer_types",
+      "fieldtype": "Text",
+      "label": "Customer Types",
+      "description": "Who are your main customer categories? One per line.\n\nExample:\n- OEM manufacturers (bulk orders)\n- Retail auto parts shops\n- Fleet maintenance companies\n- Export buyers"
+    },
+    {
+      "fieldname": "column_break_sales",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "key_metrics_sales",
+      "fieldtype": "Text",
+      "label": "Key Sales Metrics",
+      "description": "What sales numbers matter most to your business? One per line.\n\nExample:\n- Monthly revenue (target vs actual)\n- Revenue by territory\n- Top 10 customers by revenue\n- Daily sales and collections\n- Average order value\n- Days Sales Outstanding (DSO)"
+    },
+
+    {
+      "fieldname": "section_operations",
+      "fieldtype": "Section Break",
+      "label": "Section 4: Operations & Production",
+      "description": "If you manufacture or produce goods, describe your operations here. Leave blank if you're a pure trading/services company."
+    },
+    {
+      "fieldname": "has_manufacturing",
+      "fieldtype": "Check",
+      "label": "We have manufacturing / production",
+      "default": "0",
+      "description": "Enable this if you manufacture or produce goods"
+    },
+    {
+      "fieldname": "manufacturing_detail",
+      "fieldtype": "Text",
+      "label": "Manufacturing / Production Details",
+      "depends_on": "eval:doc.has_manufacturing",
+      "description": "Briefly describe your production process, facility, and key operations.\n\nExample:\n- We operate a 50,000 sq ft facility with CNC machines\n- Raw materials are cut, pressed, and heat-treated\n- Quality inspection at every stage\n- Batch tracking with BOM-based production"
+    },
+    {
+      "fieldname": "column_break_operations",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "key_metrics_production",
+      "fieldtype": "Text",
+      "label": "Key Production Metrics",
+      "depends_on": "eval:doc.has_manufacturing",
+      "description": "What production numbers matter? One per line.\n\nExample:\n- Work Order completion rate\n- Daily production output\n- Rejection / wastage rate\n- Machine utilization percentage\n- Raw material consumption vs plan"
+    },
+
+    {
+      "fieldname": "section_finance",
+      "fieldtype": "Section Break",
+      "label": "Section 5: Finance & Accounting",
+      "description": "What financial questions do you ask most? This shapes the AI's financial analysis capabilities."
+    },
+    {
+      "fieldname": "accounting_focus",
+      "fieldtype": "Text",
+      "label": "Key Financial Questions",
+      "description": "What financial information do you ask about most? One per line.\n\nExample:\n- Outstanding receivables by customer\n- Monthly P&L comparison\n- Cash flow status\n- Vendor payment dues\n- Collections vs billing\n- Working capital cycle"
+    },
+    {
+      "fieldname": "column_break_finance",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "payment_terms",
+      "fieldtype": "Small Text",
+      "label": "Typical Payment Terms",
+      "description": "What are your standard payment terms? Example: 30 days credit for established customers, advance payment for new customers, 2% discount for early payment."
+    },
+    {
+      "fieldname": "financial_analysis_depth",
+      "fieldtype": "Select",
+      "label": "Financial Analysis Depth",
+      "options": "\nBasic (revenue, expenses, profit)\nIntermediate (+ ratios, DSO/DPO, aging)\nAdvanced (+ working capital cycle, cash conversion, benchmarks)\nCFO-Level (full financial intelligence)",
+      "default": "Intermediate (+ ratios, DSO/DPO, aging)",
+      "description": "How deep should the AI go with financial analysis?"
+    },
+
+    {
+      "fieldname": "section_terminology",
+      "fieldtype": "Section Break",
+      "label": "Section 6: Terminology & Language",
+      "description": "Custom terms, abbreviations, and language preferences. This prevents misunderstandings."
+    },
+    {
+      "fieldname": "custom_terminology",
+      "fieldtype": "Text",
+      "label": "Custom Terminology",
+      "description": "Industry or company-specific terms the AI should know. One per line, format: TERM = Meaning\n\nExample:\nSKU = Stock Keeping Unit (our internal product code)\nMRN = Material Receipt Note\nGRN = Goods Receipt Note\nSO = Sales Order\nDN = Delivery Note\nPE = Payment Entry"
+    },
+    {
+      "fieldname": "column_break_terminology",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "communication_style",
+      "fieldtype": "Select",
+      "label": "Communication Style",
+      "options": "\nFormal\nProfessional\nCasual\nMixed",
+      "default": "Professional",
+      "description": "How should the AI communicate? Formal = corporate tone, Professional = business-friendly, Casual = relaxed"
+    },
+    {
+      "fieldname": "primary_language",
+      "fieldtype": "Select",
+      "label": "Primary Language",
+      "options": "\nEnglish\nHindi\nTamil\nTelugu\nKannada\nMalayalam\nMarathi\nGujarati\nBengali\nPunjabi",
+      "default": "English",
+      "description": "Primary language for AI responses"
+    },
+
+    {
+      "fieldname": "section_ai_behavior",
+      "fieldtype": "Section Break",
+      "label": "Section 7: AI Behavior Preferences",
+      "description": "Fine-tune how the AI responds. These preferences apply to all users on your site."
+    },
+    {
+      "fieldname": "response_length",
+      "fieldtype": "Select",
+      "label": "Default Response Length",
+      "options": "\nBrief (2-3 sentences)\nStandard (1 paragraph)\nDetailed (full analysis with tables)",
+      "default": "Detailed (full analysis with tables)",
+      "description": "How verbose should AI responses be by default?"
+    },
+    {
+      "fieldname": "number_format",
+      "fieldtype": "Select",
+      "label": "Number Format",
+      "options": "\nIndian (Lakhs, Crores)\nInternational (Millions, Billions)\nPlain numbers (no abbreviation)",
+      "default": "Indian (Lakhs, Crores)",
+      "description": "How should the AI format large numbers? Indian: 12,34,567 / ₹45.23 L. International: 1,234,567 / $1.23M"
+    },
+    {
+      "fieldname": "column_break_behavior",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "executive_focus",
+      "fieldtype": "Text",
+      "label": "Executive Focus Areas",
+      "description": "What should the AI prioritize when reporting to management? One per line.\n\nExample:\n- Revenue vs target\n- Cash position and collections\n- Overdue receivables\n- Working capital cycle\n- Production output\n- Low stock items"
+    },
+    {
+      "fieldname": "restricted_data",
+      "fieldtype": "Text",
+      "label": "Restricted Data",
+      "description": "Data the AI should NOT discuss with regular users. One per line.\n\nExample:\n- Individual employee salaries (unless HR Manager)\n- Customer-specific pricing discounts\n- Internal margin percentages (unless executive)"
+    },
+
+    {
+      "fieldname": "section_personality",
+      "fieldtype": "Section Break",
+      "label": "AI Personality & Voice",
+      "collapsible": 1,
+      "description": "Optional: customize the AI's personality and communication style"
+    },
+    {
+      "fieldname": "ai_personality",
+      "fieldtype": "Text",
+      "label": "AI Personality Instructions",
+      "description": "How should the AI behave? Write instructions as if you're coaching a new executive.\n\nExample:\n- Be professional but warm\n- Use 'we' and 'our' when talking about the company\n- Be decisive — don't hedge with 'it seems like'\n- If data shows something important, say it proactively\n- Recommend actions, don't just report numbers"
+    },
+    {
+      "fieldname": "example_voice",
+      "fieldtype": "Text",
+      "label": "Example Response (Optional)",
+      "description": "Paste an example of the ideal AI response. The AI will mimic this style.\n\nExample:\nOur collections this month are ₹38.4 L against ₹52.1 L in sales — that's a 73.7% collection rate, down from 81.2% last month. DSO has crept up to 47 days. I'd recommend focusing on the top 5 overdue accounts."
+    },
+
+    {
+      "fieldname": "section_custom_doctypes",
+      "fieldtype": "Section Break",
+      "label": "Custom Doctypes Knowledge",
+      "collapsible": 1,
+      "description": "If you have custom doctypes in ERPNext that the AI should know about, describe them here."
+    },
+    {
+      "fieldname": "custom_doctypes_info",
+      "fieldtype": "Text",
+      "label": "Custom Doctypes",
+      "description": "Describe any custom doctypes the AI should be aware of. One per line, format:\nDoctype Name — field1, field2, field3. Purpose: what this doctype tracks.\n\nExample:\nJob Card Custom — machine_id, operator, start_time, end_time. Purpose: tracks machine-level production.\nDealer Agreement — dealer, territory, commission_rate, validity. Purpose: manages dealer contracts."
+    },
+
+    {
+      "fieldname": "section_industry_benchmarks",
+      "fieldtype": "Section Break",
+      "label": "Industry Benchmarks",
+      "collapsible": 1,
+      "description": "Optional: provide industry benchmarks so the AI can compare your performance"
+    },
+    {
+      "fieldname": "industry_benchmarks",
+      "fieldtype": "Text",
+      "label": "Industry Benchmarks",
+      "description": "What are typical performance numbers in your industry? This helps the AI evaluate your metrics.\n\nExample:\n- Typical gross margin: 20-30%\n- Typical DSO: 30-45 days\n- Revenue growth: 10-15% YoY for mid-size\n- Working capital cycle: 45-75 days is normal"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1
+    },
+    {
+      "role": "Administrator",
+      "read": 1,
+      "write": 1,
+      "create": 1
+    }
+  ],
+  "sort_field": "creation",
+  "sort_order": "ASC",
+  "track_changes": 1,
+  "index_web_pages_for_search": 0
+}

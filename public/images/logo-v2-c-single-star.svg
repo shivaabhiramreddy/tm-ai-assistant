@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Clean green circle background -->
+  <circle cx="256" cy="256" r="240" fill="#047e38"/>
+
+  <!-- Chat bubble — rounded -->
+  <path d="M 135 150
+           Q 135 115, 170 115
+           L 352 115
+           Q 387 115, 387 150
+           L 387 286
+           Q 387 321, 352 321
+           L 215 321
+           L 162 378
+           L 175 321
+           L 170 321
+           Q 135 321, 135 286
+           Z"
+        fill="white" opacity="0.95"/>
+
+  <!-- ONE large centered sparkle inside the bubble — ultra clean -->
+  <g transform="translate(261, 218)">
+    <path d="M 0 -52 C 7 -19, 19 -7, 52 0 C 19 7, 7 19, 0 52 C -7 19, -19 7, -52 0 C -19 -7, -7 -19, 0 -52 Z" fill="#fac421"/>
+  </g>
+</svg>

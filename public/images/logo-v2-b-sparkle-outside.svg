@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Clean green circle background -->
+  <circle cx="256" cy="256" r="240" fill="#047e38"/>
+
+  <!-- Chat bubble — white, clean -->
+  <path d="M 130 155
+           Q 130 118, 167 118
+           L 350 118
+           Q 387 118, 387 155
+           L 387 285
+           Q 387 322, 350 322
+           L 218 322
+           L 165 378
+           L 178 322
+           L 167 322
+           Q 130 322, 130 285
+           Z"
+        fill="white" opacity="0.95"/>
+
+  <!-- Three horizontal dots inside bubble (like a typing indicator) -->
+  <circle cx="215" cy="225" r="12" fill="#047e38" opacity="0.25"/>
+  <circle cx="260" cy="225" r="12" fill="#047e38" opacity="0.35"/>
+  <circle cx="305" cy="225" r="12" fill="#047e38" opacity="0.45"/>
+
+  <!-- LARGE sparkle OUTSIDE the bubble — top right, overlapping edge -->
+  <g transform="translate(385, 115)">
+    <path d="M 0 -42 C 6 -15, 15 -6, 42 0 C 15 6, 6 15, 0 42 C -6 15, -15 6, -42 0 C -15 -6, -6 -15, 0 -42 Z" fill="#fac421"/>
+  </g>
+
+  <!-- Medium sparkle — left of bubble, floating -->
+  <g transform="translate(112, 160)">
+    <path d="M 0 -22 C 3 -8, 8 -3, 22 0 C 8 3, 3 8, 0 22 C -3 8, -8 3, -22 0 C -8 -3, -3 -8, 0 -22 Z" fill="#fac421" opacity="0.85"/>
+  </g>
+
+  <!-- Small sparkle — bottom right -->
+  <g transform="translate(408, 335)">
+    <path d="M 0 -14 C 2 -5, 5 -2, 14 0 C 5 2, 2 5, 0 14 C -2 5, -5 2, -14 0 C -5 -2, -2 -5, 0 -14 Z" fill="#fac421" opacity="0.7"/>
+  </g>
+</svg>

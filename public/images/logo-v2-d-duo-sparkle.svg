@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Clean green circle background -->
+  <circle cx="256" cy="256" r="240" fill="#047e38"/>
+
+  <!-- Chat bubble -->
+  <path d="M 140 152
+           Q 140 118, 175 118
+           L 352 118
+           Q 387 118, 387 152
+           L 387 285
+           Q 387 320, 352 320
+           L 220 320
+           L 168 375
+           L 180 320
+           L 175 320
+           Q 140 320, 140 285
+           Z"
+        fill="white" opacity="0.95"/>
+
+  <!-- TWO sparkles — one big, one medium, balanced composition -->
+
+  <!-- Big sparkle (center-left) -->
+  <g transform="translate(228, 200)">
+    <path d="M 0 -42 C 6 -15, 15 -6, 42 0 C 15 6, 6 15, 0 42 C -6 15, -15 6, -42 0 C -15 -6, -6 -15, 0 -42 Z" fill="#fac421"/>
+  </g>
+
+  <!-- Medium sparkle (center-right, slightly lower) -->
+  <g transform="translate(318, 235)">
+    <path d="M 0 -26 C 4 -9, 9 -4, 26 0 C 9 4, 4 9, 0 26 C -4 9, -9 4, -26 0 C -9 -4, -4 -9, 0 -26 Z" fill="#fac421"/>
+  </g>
+</svg>

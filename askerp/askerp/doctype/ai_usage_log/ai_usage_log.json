@@ -1,0 +1,158 @@
+{
+    "actions": [],
+    "autoname": "hash",
+    "creation": "2026-02-11 12:00:00.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "user", "session_id", "question", "model",
+        "section_tokens",
+        "input_tokens", "output_tokens", "total_tokens", "tool_calls",
+        "column_break_tokens",
+        "cache_read_tokens", "cache_creation_tokens", "complexity",
+        "section_cost",
+        "cost_input", "cost_output",
+        "column_break_cost",
+        "cost_total"
+    ],
+    "fields": [
+        {
+            "fieldname": "user",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "User",
+            "options": "User",
+            "reqd": 1
+        },
+        {
+            "fieldname": "session_id",
+            "fieldtype": "Data",
+            "label": "Session ID",
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "question",
+            "fieldtype": "Small Text",
+            "label": "Question",
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "model",
+            "fieldtype": "Data",
+            "label": "Model",
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "section_tokens",
+            "fieldtype": "Section Break",
+            "label": "Token Usage"
+        },
+        {
+            "fieldname": "input_tokens",
+            "fieldtype": "Int",
+            "label": "Input Tokens",
+            "default": "0"
+        },
+        {
+            "fieldname": "output_tokens",
+            "fieldtype": "Int",
+            "label": "Output Tokens",
+            "default": "0"
+        },
+        {
+            "fieldname": "total_tokens",
+            "fieldtype": "Int",
+            "label": "Total Tokens",
+            "default": "0",
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "tool_calls",
+            "fieldtype": "Int",
+            "label": "Tool Calls Made",
+            "default": "0"
+        },
+        {
+            "fieldname": "column_break_tokens",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "cache_read_tokens",
+            "fieldtype": "Int",
+            "label": "Cache Read Tokens",
+            "default": "0",
+            "description": "Tokens served from Anthropic prompt cache"
+        },
+        {
+            "fieldname": "cache_creation_tokens",
+            "fieldtype": "Int",
+            "label": "Cache Creation Tokens",
+            "default": "0",
+            "description": "Tokens written to prompt cache"
+        },
+        {
+            "fieldname": "complexity",
+            "fieldtype": "Select",
+            "label": "Query Complexity",
+            "options": "\nflash\nsimple\nmedium\ncomplex",
+            "description": "Classification tier assigned by smart router"
+        },
+        {
+            "fieldname": "section_cost",
+            "fieldtype": "Section Break",
+            "label": "Cost"
+        },
+        {
+            "fieldname": "cost_input",
+            "fieldtype": "Float",
+            "label": "Input Cost ($)",
+            "default": "0",
+            "precision": "6",
+            "description": "Calculated: (input_tokens / 1M) × model input cost"
+        },
+        {
+            "fieldname": "cost_output",
+            "fieldtype": "Float",
+            "label": "Output Cost ($)",
+            "default": "0",
+            "precision": "6",
+            "description": "Calculated: (output_tokens / 1M) × model output cost"
+        },
+        {
+            "fieldname": "column_break_cost",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "cost_total",
+            "fieldtype": "Float",
+            "label": "Total Cost ($)",
+            "default": "0",
+            "precision": "6",
+            "in_list_view": 1,
+            "description": "Input cost + Output cost"
+        }
+    ],
+    "index_web_pages_for_search": 0,
+    "is_submittable": 0,
+    "links": [],
+    "modified": "2026-02-14 12:00:00.000000",
+    "modified_by": "Administrator",
+    "module": "AskERP",
+    "name": "AI Usage Log",
+    "naming_rule": "Random",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "export": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "write": 1
+        }
+    ],
+    "sort_field": "creation",
+    "sort_order": "DESC",
+    "track_changes": 0
+}

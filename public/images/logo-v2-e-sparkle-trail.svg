@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Clean green circle background -->
+  <circle cx="256" cy="256" r="240" fill="#047e38"/>
+
+  <!-- Chat bubble -->
+  <path d="M 135 155
+           Q 135 118, 172 118
+           L 348 118
+           Q 385 118, 385 155
+           L 385 282
+           Q 385 319, 348 319
+           L 216 319
+           L 162 375
+           L 175 319
+           L 172 319
+           Q 135 319, 135 282
+           Z"
+        fill="white" opacity="0.95"/>
+
+  <!-- Sparkle trail — diagonal cascade from top-left to bottom-right inside bubble -->
+
+  <!-- Sparkle 1 (large, top-left) -->
+  <g transform="translate(200, 178)">
+    <path d="M 0 -32 C 4 -12, 12 -4, 32 0 C 12 4, 4 12, 0 32 C -4 12, -12 4, -32 0 C -12 -4, -4 -12, 0 -32 Z" fill="#fac421"/>
+  </g>
+
+  <!-- Sparkle 2 (medium, center) -->
+  <g transform="translate(263, 218)">
+    <path d="M 0 -26 C 4 -9, 9 -4, 26 0 C 9 4, 4 9, 0 26 C -4 9, -9 4, -26 0 C -9 -4, -4 -9, 0 -26 Z" fill="#fac421"/>
+  </g>
+
+  <!-- Sparkle 3 (small, bottom-right) -->
+  <g transform="translate(320, 255)">
+    <path d="M 0 -18 C 2 -6, 6 -2, 18 0 C 6 2, 2 6, 0 18 C -2 6, -6 2, -18 0 C -6 -2, -2 -6, 0 -18 Z" fill="#fac421"/>
+  </g>
+
+  <!-- Tiny dot accent -->
+  <circle cx="355" cy="278" r="5" fill="#fac421" opacity="0.6"/>
+</svg>

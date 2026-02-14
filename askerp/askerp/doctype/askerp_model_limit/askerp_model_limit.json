@@ -1,0 +1,41 @@
+{
+  "name": "AskERP Model Limit",
+  "module": "AskERP",
+  "doctype": "DocType",
+  "document_type": "Document",
+  "istable": 1,
+  "engine": "InnoDB",
+  "field_order": ["role", "daily_limit", "description"],
+  "fields": [
+    {
+      "fieldname": "role",
+      "fieldtype": "Link",
+      "label": "Role",
+      "options": "Role",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "daily_limit",
+      "fieldtype": "Int",
+      "label": "Daily Limit",
+      "reqd": 1,
+      "in_list_view": 1,
+      "default": "50",
+      "description": "Maximum queries per day for users with this role on this model"
+    },
+    {
+      "fieldname": "description",
+      "fieldtype": "Data",
+      "label": "Description",
+      "in_list_view": 1,
+      "description": "Optional note, e.g. 'Heavy analysis users'"
+    }
+  ],
+  "permissions": [],
+  "sort_field": "idx",
+  "sort_order": "ASC",
+  "track_changes": 0,
+  "naming_rule": "Random",
+  "autoname": "hash"
+}

@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background rounded square -->
+  <rect x="16" y="16" width="480" height="480" rx="96" ry="96" fill="#056839"/>
+
+  <!-- Brain/lightbulb hybrid shape -->
+  <g transform="translate(256, 230)">
+    <!-- Brain outline (simplified, symmetrical) -->
+    <path d="M -8 80 L 8 80 L 8 95 C 8 105, -8 105, -8 95 Z" fill="#fac421" opacity="0.9"/>
+
+    <!-- Left brain hemisphere -->
+    <path d="M -10 75
+             C -65 70, -95 30, -85 -15
+             C -80 -40, -60 -60, -35 -72
+             C -15 -82, 0 -80, 0 -75
+             L 0 75 Z"
+          fill="white" opacity="0.9"/>
+
+    <!-- Right brain hemisphere -->
+    <path d="M 10 75
+             C 65 70, 95 30, 85 -15
+             C 80 -40, 60 -60, 35 -72
+             C 15 -82, 0 -80, 0 -75
+             L 0 75 Z"
+          fill="white" opacity="0.85"/>
+
+    <!-- Circuit/neural connections (left side) -->
+    <circle cx="-45" cy="-20" r="6" fill="#fac421"/>
+    <circle cx="-30" cy="-50" r="5" fill="#fac421"/>
+    <circle cx="-55" cy="20" r="5" fill="#fac421"/>
+    <line x1="-45" y1="-20" x2="-30" y2="-50" stroke="#fac421" stroke-width="2"/>
+    <line x1="-45" y1="-20" x2="-55" y2="20" stroke="#fac421" stroke-width="2"/>
+
+    <!-- Circuit/neural connections (right side) -->
+    <circle cx="45" cy="-20" r="6" fill="#fac421"/>
+    <circle cx="30" cy="-50" r="5" fill="#fac421"/>
+    <circle cx="55" cy="20" r="5" fill="#fac421"/>
+    <line x1="45" y1="-20" x2="30" y2="-50" stroke="#fac421" stroke-width="2"/>
+    <line x1="45" y1="-20" x2="55" y2="20" stroke="#fac421" stroke-width="2"/>
+
+    <!-- Center dividing line -->
+    <line x1="0" y1="-70" x2="0" y2="70" stroke="#056839" stroke-width="3"/>
+  </g>
+
+  <!-- Small sparkle top-right -->
+  <g transform="translate(390, 110)">
+    <path d="M 0 -16 C 2 -6, 6 -2, 16 0 C 6 2, 2 6, 0 16 C -2 6, -6 2, -16 0 C -6 -2, -2 -6, 0 -16 Z" fill="#fac421"/>
+  </g>
+</svg>

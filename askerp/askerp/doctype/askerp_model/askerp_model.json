@@ -1,0 +1,312 @@
+{
+  "name": "AskERP Model",
+  "module": "AskERP",
+  "doctype": "DocType",
+  "document_type": "Setup",
+  "engine": "InnoDB",
+  "naming_rule": "By fieldname",
+  "autoname": "field:model_id",
+  "allow_rename": 0,
+  "field_order": [
+    "section_identity",
+    "model_name", "model_id",
+    "column_break_identity",
+    "provider", "tier", "enabled",
+    "section_api",
+    "api_key", "api_secret",
+    "column_break_api",
+    "api_base_url", "api_version",
+    "section_capabilities",
+    "supports_tools", "supports_vision",
+    "column_break_capabilities",
+    "supports_streaming", "supports_thinking",
+    "max_output_tokens",
+    "section_cost",
+    "input_cost_per_million", "output_cost_per_million",
+    "column_break_cost",
+    "cache_read_cost_per_million",
+    "cache_write_cost_per_million",
+    "section_budgets",
+    "token_budget_simple", "token_budget_medium",
+    "column_break_budgets",
+    "token_budget_complex", "max_tool_rounds",
+    "section_rate_limits",
+    "rate_limits",
+    "section_status",
+    "last_tested", "test_status",
+    "column_break_status",
+    "test_message"
+  ],
+  "fields": [
+    {
+      "fieldname": "section_identity",
+      "fieldtype": "Section Break",
+      "label": "Model Identity"
+    },
+    {
+      "fieldname": "model_name",
+      "fieldtype": "Data",
+      "label": "Model Name",
+      "reqd": 1,
+      "in_list_view": 1,
+      "description": "Display name, e.g. 'Claude Opus 4.6'"
+    },
+    {
+      "fieldname": "model_id",
+      "fieldtype": "Data",
+      "label": "Model ID",
+      "reqd": 1,
+      "unique": 1,
+      "description": "API model string, e.g. 'claude-opus-4-6'. This becomes the document name."
+    },
+    {
+      "fieldname": "column_break_identity",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "provider",
+      "fieldtype": "Select",
+      "label": "Provider",
+      "options": "\nAnthropic\nGoogle\nOpenAI\nCustom",
+      "reqd": 1,
+      "in_list_view": 1,
+      "description": "AI service provider"
+    },
+    {
+      "fieldname": "tier",
+      "fieldtype": "Select",
+      "label": "Tier",
+      "options": "\nTier 1 (Economy)\nTier 2 (Standard)\nTier 3 (Premium)\nUtility",
+      "reqd": 1,
+      "in_list_view": 1,
+      "description": "Cost tier for smart routing"
+    },
+    {
+      "fieldname": "enabled",
+      "fieldtype": "Check",
+      "label": "Enabled",
+      "default": "1",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "section_api",
+      "fieldtype": "Section Break",
+      "label": "API Configuration"
+    },
+    {
+      "fieldname": "api_key",
+      "fieldtype": "Password",
+      "label": "API Key",
+      "reqd": 1,
+      "description": "Encrypted at rest by Frappe. For Anthropic: the x-api-key. For Google: the API key. For OpenAI: the Bearer token."
+    },
+    {
+      "fieldname": "api_secret",
+      "fieldtype": "Password",
+      "label": "API Secret",
+      "description": "Optional secondary secret (if the provider requires two credentials)"
+    },
+    {
+      "fieldname": "column_break_api",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "api_base_url",
+      "fieldtype": "Data",
+      "label": "API Base URL",
+      "description": "Auto-filled based on provider. Override for custom endpoints or proxies."
+    },
+    {
+      "fieldname": "api_version",
+      "fieldtype": "Data",
+      "label": "API Version",
+      "description": "e.g. '2023-06-01' for Anthropic. Leave blank if not applicable."
+    },
+    {
+      "fieldname": "section_capabilities",
+      "fieldtype": "Section Break",
+      "label": "Capabilities",
+      "collapsible": 1
+    },
+    {
+      "fieldname": "supports_tools",
+      "fieldtype": "Check",
+      "label": "Supports Tool Use",
+      "default": "1",
+      "description": "Can this model call ERPNext tools (function calling)?"
+    },
+    {
+      "fieldname": "supports_vision",
+      "fieldtype": "Check",
+      "label": "Supports Vision",
+      "default": "0",
+      "description": "Can this model analyze images?"
+    },
+    {
+      "fieldname": "column_break_capabilities",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "supports_streaming",
+      "fieldtype": "Check",
+      "label": "Supports Streaming",
+      "default": "1",
+      "description": "Does this model support server-sent events (SSE) streaming?"
+    },
+    {
+      "fieldname": "supports_thinking",
+      "fieldtype": "Check",
+      "label": "Supports Extended Thinking",
+      "default": "0",
+      "description": "Anthropic-specific: adaptive/extended thinking capability"
+    },
+    {
+      "fieldname": "max_output_tokens",
+      "fieldtype": "Int",
+      "label": "Max Output Tokens",
+      "default": "4096",
+      "description": "Maximum tokens the model can output per request"
+    },
+    {
+      "fieldname": "section_cost",
+      "fieldtype": "Section Break",
+      "label": "Cost Per Million Tokens",
+      "collapsible": 1,
+      "description": "Used for cost tracking. Enter the provider's published pricing."
+    },
+    {
+      "fieldname": "input_cost_per_million",
+      "fieldtype": "Float",
+      "label": "Input Cost ($/1M tokens)",
+      "default": "0",
+      "precision": "2",
+      "description": "e.g. 15.00 for Opus, 3.00 for Sonnet, 0.075 for Gemini Flash"
+    },
+    {
+      "fieldname": "output_cost_per_million",
+      "fieldtype": "Float",
+      "label": "Output Cost ($/1M tokens)",
+      "default": "0",
+      "precision": "2",
+      "description": "e.g. 75.00 for Opus, 15.00 for Sonnet, 0.30 for Gemini Flash"
+    },
+    {
+      "fieldname": "column_break_cost",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "cache_read_cost_per_million",
+      "fieldtype": "Float",
+      "label": "Cache Read Cost ($/1M tokens)",
+      "default": "0",
+      "precision": "2",
+      "description": "Anthropic prompt caching: discounted rate for cached input tokens"
+    },
+    {
+      "fieldname": "cache_write_cost_per_million",
+      "fieldtype": "Float",
+      "label": "Cache Write Cost ($/1M tokens)",
+      "default": "0",
+      "precision": "2",
+      "description": "Anthropic prompt caching: cost for tokens written to cache (typically 1.25x input cost)"
+    },
+    {
+      "fieldname": "section_budgets",
+      "fieldtype": "Section Break",
+      "label": "Token Budgets",
+      "collapsible": 1,
+      "description": "Per-query token limits to control costs. If exceeded mid-query, the model synthesizes from data gathered so far."
+    },
+    {
+      "fieldname": "token_budget_simple",
+      "fieldtype": "Int",
+      "label": "Simple Query Budget",
+      "default": "15000",
+      "description": "For simple lookups: 'how many orders today?'"
+    },
+    {
+      "fieldname": "token_budget_medium",
+      "fieldtype": "Int",
+      "label": "Medium Query Budget",
+      "default": "35000",
+      "description": "For comparisons and trends: 'compare this month vs last'"
+    },
+    {
+      "fieldname": "column_break_budgets",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "token_budget_complex",
+      "fieldtype": "Int",
+      "label": "Complex Query Budget",
+      "default": "60000",
+      "description": "For deep analysis: 'full business dashboard with recommendations'"
+    },
+    {
+      "fieldname": "max_tool_rounds",
+      "fieldtype": "Int",
+      "label": "Max Tool Rounds",
+      "default": "8",
+      "description": "Maximum number of tool-use iterations per query"
+    },
+    {
+      "fieldname": "section_rate_limits",
+      "fieldtype": "Section Break",
+      "label": "Rate Limits by Role"
+    },
+    {
+      "fieldname": "rate_limits",
+      "fieldtype": "Table",
+      "label": "Rate Limits",
+      "options": "AskERP Model Limit",
+      "description": "Per-role daily query limits for this model. If a user's role is not listed, the global default from AskERP Settings is used."
+    },
+    {
+      "fieldname": "section_status",
+      "fieldtype": "Section Break",
+      "label": "Connection Status",
+      "collapsible": 1
+    },
+    {
+      "fieldname": "last_tested",
+      "fieldtype": "Datetime",
+      "label": "Last Tested",
+      "read_only": 1
+    },
+    {
+      "fieldname": "test_status",
+      "fieldtype": "Select",
+      "label": "Test Status",
+      "options": "\nNot Tested\nPass\nFail",
+      "default": "Not Tested",
+      "read_only": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "column_break_status",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "test_message",
+      "fieldtype": "Small Text",
+      "label": "Test Result",
+      "read_only": 1,
+      "description": "Details from the last connection test"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1,
+      "export": 1,
+      "report": 1
+    }
+  ],
+  "sort_field": "creation",
+  "sort_order": "ASC",
+  "track_changes": 1,
+  "index_web_pages_for_search": 0
+}

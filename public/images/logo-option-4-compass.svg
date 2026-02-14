@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background -->
+  <rect x="16" y="16" width="480" height="480" rx="96" ry="96" fill="#143121"/>
+
+  <!-- Outer compass ring -->
+  <circle cx="256" cy="256" r="170" fill="none" stroke="white" stroke-width="6" opacity="0.25"/>
+  <circle cx="256" cy="256" r="155" fill="none" stroke="white" stroke-width="2" opacity="0.15"/>
+
+  <!-- Cardinal direction dots -->
+  <circle cx="256" cy="90" r="7" fill="white" opacity="0.4"/>  <!-- N -->
+  <circle cx="422" cy="256" r="7" fill="white" opacity="0.4"/>  <!-- E -->
+  <circle cx="256" cy="422" r="7" fill="white" opacity="0.4"/>  <!-- S -->
+  <circle cx="90" cy="256" r="7" fill="white" opacity="0.4"/>   <!-- W -->
+
+  <!-- Compass needle (N-S) -->
+  <!-- North pointer (gold/yellow) -->
+  <polygon points="256,120 240,256 272,256" fill="#fac421"/>
+  <!-- South pointer (white, dimmer) -->
+  <polygon points="256,392 240,256 272,256" fill="white" opacity="0.5"/>
+
+  <!-- East-West bar -->
+  <polygon points="120,256 256,240 256,272" fill="white" opacity="0.35"/>
+  <polygon points="392,256 256,240 256,272" fill="white" opacity="0.35"/>
+
+  <!-- Center circle -->
+  <circle cx="256" cy="256" r="22" fill="#047e38"/>
+  <circle cx="256" cy="256" r="14" fill="white"/>
+  <circle cx="256" cy="256" r="6" fill="#fac421"/>
+
+  <!-- AI sparkle near top-right -->
+  <g transform="translate(340, 150)">
+    <path d="M 0 -20 C 2 -7, 7 -2, 20 0 C 7 2, 2 7, 0 20 C -2 7, -7 2, -20 0 C -7 -2, -2 -7, 0 -20 Z" fill="#fac421" opacity="0.8"/>
+  </g>
+
+  <!-- Small sparkle bottom-left -->
+  <g transform="translate(172, 362)">
+    <path d="M 0 -12 C 1 -4, 4 -1, 12 0 C 4 1, 1 4, 0 12 C -1 4, -4 1, -12 0 C -4 -1, -1 -4, 0 -12 Z" fill="#fac421" opacity="0.6"/>
+  </g>
+</svg>

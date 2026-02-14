@@ -1,0 +1,615 @@
+/*
+ * AskERP — ERPNext Chat Widget Styles
+ * ==============================================
+ * Intercom + LinkedIn messaging hybrid design.
+ * All classes prefixed with askerp- to avoid ERPNext CSS conflicts.
+ * Uses CSS custom properties for easy theming.
+ */
+
+/* ─── CSS Variables (Theme) ──────────────────────────────────── */
+:root {
+  --askerp-primary: #056839;
+  --askerp-primary-dark: #044d2a;
+  --askerp-primary-light: #e8f5e9;
+  --askerp-accent: #fac421;
+  --askerp-danger: #ee4919;
+  --askerp-text: #1a1a2e;
+  --askerp-text-muted: #6b7280;
+  --askerp-bg: #ffffff;
+  --askerp-bg-muted: #f8f9fa;
+  --askerp-border: #e5e7eb;
+  --askerp-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --askerp-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --askerp-radius: 16px;
+  --askerp-radius-sm: 10px;
+  --askerp-panel-width: 420px;
+  --askerp-panel-height: 560px;
+  --askerp-bubble-size: 56px;
+  --askerp-z-index: 10050;
+  --askerp-transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─── Floating Bubble ────────────────────────────────────────── */
+.askerp-bubble {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: var(--askerp-bubble-size);
+  height: var(--askerp-bubble-size);
+  border-radius: 50%;
+  background: var(--askerp-primary);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  z-index: var(--askerp-z-index);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(5, 104, 57, 0.35);
+  transition: transform var(--askerp-transition), box-shadow var(--askerp-transition);
+  outline: none;
+}
+
+.askerp-bubble:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 24px rgba(5, 104, 57, 0.45);
+}
+
+.askerp-bubble:active {
+  transform: scale(0.95);
+}
+
+.askerp-bubble svg {
+  width: 26px;
+  height: 26px;
+  fill: currentColor;
+}
+
+.askerp-bubble.askerp-hidden {
+  display: none;
+}
+
+/* Pulse animation on first load */
+.askerp-bubble.askerp-pulse {
+  animation: askerp-pulse 2s ease-in-out 3;
+}
+
+@keyframes askerp-pulse {
+  0%, 100% { box-shadow: 0 4px 16px rgba(5, 104, 57, 0.35); }
+  50% { box-shadow: 0 4px 16px rgba(5, 104, 57, 0.35), 0 0 0 12px rgba(5, 104, 57, 0.12); }
+}
+
+/* Unread badge */
+.askerp-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--askerp-danger);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border: 2px solid #fff;
+  line-height: 1;
+}
+
+.askerp-badge.askerp-hidden {
+  display: none;
+}
+
+/* ─── Chat Panel ─────────────────────────────────────────────── */
+.askerp-panel {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: var(--askerp-panel-width);
+  height: var(--askerp-panel-height);
+  background: var(--askerp-bg);
+  border-radius: var(--askerp-radius);
+  box-shadow: var(--askerp-shadow);
+  z-index: var(--askerp-z-index);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(20px) scale(0.95);
+  pointer-events: none;
+  transition: opacity var(--askerp-transition), transform var(--askerp-transition);
+  border: 1px solid var(--askerp-border);
+}
+
+.askerp-panel.askerp-open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+/* Full-screen mode */
+.askerp-panel.askerp-fullscreen {
+  bottom: 0;
+  right: 0;
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+  border: none;
+}
+
+/* ─── Panel Header ───────────────────────────────────────────── */
+.askerp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: var(--askerp-primary);
+  color: #fff;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.askerp-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.askerp-header-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.askerp-header-avatar svg {
+  width: 18px;
+  height: 18px;
+  fill: #fff;
+}
+
+.askerp-header-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.askerp-header-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.askerp-header-context {
+  font-size: 11px;
+  opacity: 0.8;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.askerp-header-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.askerp-header-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  padding: 0;
+}
+
+.askerp-header-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.askerp-header-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+/* ─── Messages Area ──────────────────────────────────────────── */
+.askerp-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--askerp-bg-muted);
+  scroll-behavior: smooth;
+}
+
+.askerp-messages::-webkit-scrollbar {
+  width: 5px;
+}
+
+.askerp-messages::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
+
+/* Welcome message */
+.askerp-welcome {
+  text-align: center;
+  padding: 24px 16px;
+}
+
+.askerp-welcome-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--askerp-primary-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 12px;
+}
+
+.askerp-welcome-icon svg {
+  width: 24px;
+  height: 24px;
+  fill: var(--askerp-primary);
+}
+
+.askerp-welcome h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--askerp-text);
+  margin: 0 0 6px;
+}
+
+.askerp-welcome p {
+  font-size: 13px;
+  color: var(--askerp-text-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ─── Message Bubbles ────────────────────────────────────────── */
+.askerp-msg {
+  display: flex;
+  max-width: 88%;
+  animation: askerp-msgIn 0.2s ease-out;
+}
+
+@keyframes askerp-msgIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.askerp-msg.askerp-user {
+  align-self: flex-end;
+}
+
+.askerp-msg.askerp {
+  align-self: flex-start;
+}
+
+.askerp-msg-content {
+  padding: 10px 14px;
+  border-radius: var(--askerp-radius-sm);
+  font-size: 13px;
+  line-height: 1.55;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.askerp-user .askerp-msg-content {
+  background: var(--askerp-primary);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.askerp .askerp-msg-content {
+  background: #fff;
+  color: var(--askerp-text);
+  border: 1px solid var(--askerp-border);
+  border-bottom-left-radius: 4px;
+}
+
+/* Markdown rendering inside assistant messages */
+.askerp .askerp-msg-content h2,
+.askerp .askerp-msg-content h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 10px 0 6px;
+  color: var(--askerp-text);
+}
+
+.askerp .askerp-msg-content h2:first-child,
+.askerp .askerp-msg-content h3:first-child {
+  margin-top: 0;
+}
+
+.askerp .askerp-msg-content strong {
+  font-weight: 600;
+}
+
+.askerp .askerp-msg-content code {
+  background: var(--askerp-bg-muted);
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: 'SF Mono', 'Consolas', monospace;
+}
+
+.askerp .askerp-msg-content pre {
+  background: #1e1e2e;
+  color: #cdd6f4;
+  padding: 10px 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 12px;
+  margin: 8px 0;
+}
+
+.askerp .askerp-msg-content pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+
+.askerp .askerp-msg-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 12px;
+}
+
+.askerp .askerp-msg-content table th {
+  background: var(--askerp-bg-muted);
+  font-weight: 600;
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 2px solid var(--askerp-border);
+  white-space: nowrap;
+}
+
+.askerp .askerp-msg-content table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--askerp-border);
+}
+
+.askerp .askerp-msg-content table tr:last-child td {
+  border-bottom: none;
+}
+
+.askerp .askerp-msg-content ul,
+.askerp .askerp-msg-content ol {
+  padding-left: 18px;
+  margin: 6px 0;
+}
+
+.askerp .askerp-msg-content li {
+  margin: 3px 0;
+}
+
+.askerp .askerp-msg-content blockquote {
+  border-left: 3px solid var(--askerp-primary);
+  padding-left: 10px;
+  margin: 8px 0;
+  color: var(--askerp-text-muted);
+}
+
+.askerp .askerp-msg-content a {
+  color: var(--askerp-primary);
+  text-decoration: underline;
+}
+
+.askerp .askerp-msg-content hr {
+  border: none;
+  border-top: 1px solid var(--askerp-border);
+  margin: 10px 0;
+}
+
+/* ─── Typing / Tool Status Indicator ─────────────────────────── */
+.askerp-typing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid var(--askerp-border);
+  border-radius: var(--askerp-radius-sm);
+  font-size: 12px;
+  color: var(--askerp-text-muted);
+  max-width: 88%;
+  animation: askerp-msgIn 0.2s ease-out;
+}
+
+.askerp-typing-dots {
+  display: flex;
+  gap: 3px;
+}
+
+.askerp-typing-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--askerp-primary);
+  opacity: 0.4;
+  animation: askerp-dotBounce 1.4s ease-in-out infinite;
+}
+
+.askerp-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.askerp-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes askerp-dotBounce {
+  0%, 80%, 100% { opacity: 0.4; transform: scale(1); }
+  40% { opacity: 1; transform: scale(1.2); }
+}
+
+.askerp-tool-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--askerp-primary);
+}
+
+.askerp-tool-status svg {
+  width: 14px;
+  height: 14px;
+  fill: var(--askerp-primary);
+  animation: askerp-spin 1.5s linear infinite;
+}
+
+@keyframes askerp-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Suggestion Chips ───────────────────────────────────────── */
+.askerp-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 16px;
+  background: var(--askerp-bg);
+  border-top: 1px solid var(--askerp-border);
+  flex-shrink: 0;
+}
+
+.askerp-chip {
+  padding: 6px 12px;
+  border-radius: 16px;
+  background: var(--askerp-primary-light);
+  color: var(--askerp-primary-dark);
+  font-size: 12px;
+  border: 1px solid rgba(5, 104, 57, 0.15);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.askerp-chip:hover {
+  background: var(--askerp-primary);
+  color: #fff;
+  border-color: var(--askerp-primary);
+}
+
+/* ─── Input Area ─────────────────────────────────────────────── */
+.askerp-input-area {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--askerp-bg);
+  border-top: 1px solid var(--askerp-border);
+  flex-shrink: 0;
+}
+
+.askerp-input {
+  flex: 1;
+  min-height: 38px;
+  max-height: 120px;
+  padding: 8px 12px;
+  border: 1px solid var(--askerp-border);
+  border-radius: var(--askerp-radius-sm);
+  font-size: 13px;
+  line-height: 1.4;
+  resize: none;
+  outline: none;
+  font-family: inherit;
+  color: var(--askerp-text);
+  transition: border-color 0.15s;
+  overflow-y: auto;
+}
+
+.askerp-input:focus {
+  border-color: var(--askerp-primary);
+  box-shadow: 0 0 0 2px rgba(5, 104, 57, 0.1);
+}
+
+.askerp-input::placeholder {
+  color: var(--askerp-text-muted);
+}
+
+.askerp-send-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--askerp-primary);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.askerp-send-btn:hover {
+  background: var(--askerp-primary-dark);
+}
+
+.askerp-send-btn:active {
+  transform: scale(0.92);
+}
+
+.askerp-send-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.askerp-send-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+/* ─── Error Banner ───────────────────────────────────────────── */
+.askerp-error {
+  padding: 8px 14px;
+  background: #fef2f2;
+  color: var(--askerp-danger);
+  font-size: 12px;
+  border-bottom: 1px solid #fecaca;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* ─── Responsive / Mobile ────────────────────────────────────── */
+@media (max-width: 480px) {
+  .askerp-panel {
+    bottom: 0;
+    right: 0;
+    width: 100vw;
+    height: 85vh;
+    border-radius: var(--askerp-radius) var(--askerp-radius) 0 0;
+  }
+
+  .askerp-bubble {
+    bottom: 16px;
+    right: 16px;
+  }
+}
+
+/* ─── Print: hide widget ─────────────────────────────────────── */
+@media print {
+  .askerp-bubble,
+  .askerp-panel {
+    display: none !important;
+  }
+}

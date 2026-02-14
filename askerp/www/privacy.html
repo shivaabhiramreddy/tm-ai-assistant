@@ -1,0 +1,101 @@
+{% extends "templates/web.html" %}
+
+{% block page_content %}
+<div class="container" style="max-width: 800px; margin: 0 auto; padding: 40px 20px;">
+
+<h1>AskERP — Privacy Policy</h1>
+<p class="text-muted">Last updated: February 2026</p>
+
+<hr>
+
+<h2>Overview</h2>
+<p>
+AskERP is a Frappe/ERPNext application that provides an AI-powered chat interface
+for querying your business data. This privacy policy explains what data the app collects,
+how it is processed, and where it is sent.
+</p>
+
+<h2>Data Collection</h2>
+
+<h3>Data Stored Locally (on Your ERPNext Instance)</h3>
+<p>All of the following data is stored in your own ERPNext database and never leaves your server:</p>
+<ul>
+    <li><strong>Chat Sessions</strong> — Your conversation history (questions and AI responses) is stored in the <em>AI Chat Session</em> doctype.</li>
+    <li><strong>Usage Logs</strong> — Each AI query is logged with: user, timestamp, token count, model used, and estimated cost. Stored in the <em>AI Usage Log</em> doctype.</li>
+    <li><strong>Alert Rules</strong> — Your alert configurations (thresholds, frequencies). Stored in the <em>AI Alert Rule</em> doctype.</li>
+    <li><strong>Business Profile</strong> — Your company context (industry, products, terminology). Stored in the <em>AskERP Business Profile</em> doctype.</li>
+    <li><strong>AI Settings</strong> — Model configurations, API keys (encrypted), and app preferences. Stored in the <em>AskERP Settings</em> and <em>AskERP Model</em> doctypes.</li>
+</ul>
+
+<h3>Data Sent to Third-Party AI Providers</h3>
+<p>When you ask the AI a question, the following data is sent to the AI provider you configured (Anthropic, Google, or OpenAI):</p>
+<ul>
+    <li><strong>Your question</strong> — The text you type in the chat</li>
+    <li><strong>Conversation context</strong> — Up to the last 20 messages in the current session</li>
+    <li><strong>System prompt</strong> — Instructions that tell the AI about your business context, tools, and response format</li>
+    <li><strong>Query results</strong> — When the AI uses a tool (e.g., querying sales data), the result of that query is sent back to the AI so it can formulate a response</li>
+</ul>
+<p><strong>Important:</strong> The data sent to the AI provider is limited to what's needed to answer your question. The app does NOT send your entire database, all your records, or any data beyond what the AI needs for the specific question.</p>
+
+<h3>Data NOT Collected</h3>
+<p>AskERP does NOT:</p>
+<ul>
+    <li>Send any data to the app developer or any external party</li>
+    <li>Track your behavior or analytics beyond what's stored in your own ERPNext</li>
+    <li>Store any data on external servers (everything stays in your ERPNext instance)</li>
+    <li>Access data you don't have permission to see (ERPNext user permissions are enforced)</li>
+    <li>Use your data to train AI models (this depends on your AI provider's terms — see below)</li>
+</ul>
+
+<h2>Third-Party AI Providers</h2>
+<p>
+You choose which AI provider to use and provide your own API key. Each provider has its own privacy policy
+that governs how they handle the data sent to their API:
+</p>
+<ul>
+    <li><strong>Anthropic (Claude)</strong> — <a href="https://www.anthropic.com/privacy" target="_blank">Anthropic Privacy Policy</a>. API usage is not used for model training.</li>
+    <li><strong>Google (Gemini)</strong> — <a href="https://ai.google.dev/terms" target="_blank">Google AI Terms</a>. Review their data retention policies.</li>
+    <li><strong>OpenAI (GPT)</strong> — <a href="https://openai.com/policies/privacy-policy" target="_blank">OpenAI Privacy Policy</a>. API usage is not used for model training by default.</li>
+</ul>
+<p>
+We recommend reviewing your chosen provider's privacy policy and data handling practices. The app developer
+has no control over how third-party AI providers process data sent to their APIs.
+</p>
+
+<h2>Data Security</h2>
+<ul>
+    <li><strong>API keys</strong> are stored using ERPNext's encrypted Password field type</li>
+    <li><strong>User permissions</strong> are enforced on every query — users can only access data their ERPNext role allows</li>
+    <li><strong>SQL safety</strong> — All database queries are read-only (SELECT) with blocklists on sensitive tables (users, auth, API keys)</li>
+    <li><strong>Rate limiting</strong> — Configurable daily query limits prevent abuse</li>
+    <li><strong>Budget controls</strong> — Monthly spend caps prevent runaway costs</li>
+    <li><strong>No write access</strong> — The AI cannot create, update, or delete any ERPNext records</li>
+</ul>
+
+<h2>Data Retention</h2>
+<p>
+Chat sessions, usage logs, and other app data are retained in your ERPNext instance indefinitely
+unless you manually delete them. You have full control over your data through the standard ERPNext
+interface — you can delete any chat session, usage log, or alert rule at any time.
+</p>
+
+<h2>Children's Privacy</h2>
+<p>
+AskERP is a business application and is not intended for use by children under 16. We do not
+knowingly collect data from children.
+</p>
+
+<h2>Changes to This Policy</h2>
+<p>
+This privacy policy may be updated when the app is updated. Check this page after updating the app
+to review any changes.
+</p>
+
+<h2>Contact</h2>
+<p>
+For privacy-related questions about AskERP, contact the app maintainer at the email
+listed in the app's <code>hooks.py</code> file, or open an issue on the GitHub repository.
+</p>
+
+</div>
+{% endblock %}

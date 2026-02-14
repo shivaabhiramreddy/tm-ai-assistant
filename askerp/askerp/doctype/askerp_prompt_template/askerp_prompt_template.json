@@ -1,0 +1,188 @@
+{
+  "name": "AskERP Prompt Template",
+  "module": "AskERP",
+  "doctype": "DocType",
+  "document_type": "Setup",
+  "issingle": 0,
+  "istable": 0,
+  "editable_grid": 0,
+  "track_changes": 1,
+  "engine": "InnoDB",
+  "autoname": "field:template_name",
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "title_field": "template_name",
+  "show_title_field_in_link": 1,
+  "search_fields": "tier,is_active",
+  "field_order": [
+    "section_template_info",
+    "template_name",
+    "tier",
+    "column_break_info_1",
+    "is_active",
+    "description",
+    "column_break_info_2",
+    "last_edited_by",
+    "last_edited_on",
+
+    "section_prompt",
+    "prompt_content",
+
+    "section_variables",
+    "variables_used",
+    "column_break_variables",
+    "variable_count",
+    "prompt_char_count",
+
+    "section_variable_reference",
+    "variable_reference_html"
+  ],
+  "fields": [
+    {
+      "fieldname": "section_template_info",
+      "fieldtype": "Section Break",
+      "label": "Template Information"
+    },
+    {
+      "fieldname": "template_name",
+      "fieldtype": "Data",
+      "label": "Template Name",
+      "reqd": 1,
+      "unique": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 0,
+      "description": "Unique name for this template. e.g., 'Executive System Prompt'"
+    },
+    {
+      "fieldname": "tier",
+      "fieldtype": "Select",
+      "label": "Tier",
+      "options": "\nExecutive\nManagement\nField\nUtility\nCustom",
+      "reqd": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "description": "Which user tier uses this template. Only one active template per tier."
+    },
+    {
+      "fieldname": "column_break_info_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "is_active",
+      "fieldtype": "Check",
+      "label": "Active",
+      "default": "0",
+      "in_list_view": 1,
+      "description": "Only one template per tier can be active. Activating this will deactivate others in the same tier."
+    },
+    {
+      "fieldname": "description",
+      "fieldtype": "Small Text",
+      "label": "Description",
+      "description": "Brief description of what this prompt template does and when to use it."
+    },
+    {
+      "fieldname": "column_break_info_2",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "last_edited_by",
+      "fieldtype": "Link",
+      "label": "Last Edited By",
+      "options": "User",
+      "read_only": 1
+    },
+    {
+      "fieldname": "last_edited_on",
+      "fieldtype": "Datetime",
+      "label": "Last Edited On",
+      "read_only": 1
+    },
+    {
+      "fieldname": "section_prompt",
+      "fieldtype": "Section Break",
+      "label": "Prompt Content",
+      "description": "Write the system prompt using {{variable}} placeholders. These are replaced at runtime with real data."
+    },
+    {
+      "fieldname": "prompt_content",
+      "fieldtype": "Code",
+      "label": "Prompt Content",
+      "options": "Markdown",
+      "reqd": 1,
+      "description": "The AI system prompt. Use {{variable_name}} for dynamic values. See Variable Reference below."
+    },
+    {
+      "fieldname": "section_variables",
+      "fieldtype": "Section Break",
+      "label": "Variable Analysis",
+      "collapsible": 1,
+      "collapsible_depends_on": "eval:doc.variables_used"
+    },
+    {
+      "fieldname": "variables_used",
+      "fieldtype": "Small Text",
+      "label": "Variables Used",
+      "read_only": 1,
+      "description": "Auto-detected {{variables}} in this template. Updated on save."
+    },
+    {
+      "fieldname": "column_break_variables",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "variable_count",
+      "fieldtype": "Int",
+      "label": "Variable Count",
+      "read_only": 1,
+      "default": "0"
+    },
+    {
+      "fieldname": "prompt_char_count",
+      "fieldtype": "Int",
+      "label": "Prompt Length (chars)",
+      "read_only": 1,
+      "default": "0"
+    },
+    {
+      "fieldname": "section_variable_reference",
+      "fieldtype": "Section Break",
+      "label": "Available Variables Reference",
+      "collapsible": 1,
+      "description": "All {{variables}} you can use in this prompt. Click a variable to insert it."
+    },
+    {
+      "fieldname": "variable_reference_html",
+      "fieldtype": "HTML",
+      "label": "Variable Reference",
+      "options": "<div id='askerp-variable-reference'>Loading...</div>"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "print": 1,
+      "share": 1,
+      "export": 1,
+      "import": 1
+    },
+    {
+      "role": "Administrator",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1
+    }
+  ],
+  "links": [],
+  "actions": [],
+  "creation": "2026-02-14 00:00:00",
+  "modified": "2026-02-14 00:00:00",
+  "modified_by": "Administrator",
+  "owner": "Administrator"
+}

@@ -1,0 +1,83 @@
+{
+  "name": "AskERP Tool Parameter",
+  "module": "AskERP",
+  "doctype": "DocType",
+  "document_type": "",
+  "issingle": 0,
+  "istable": 1,
+  "editable_grid": 1,
+  "track_changes": 0,
+  "engine": "InnoDB",
+  "field_order": [
+    "param_name",
+    "param_type",
+    "column_break_1",
+    "param_description",
+    "required",
+    "column_break_2",
+    "default_value",
+    "select_options"
+  ],
+  "fields": [
+    {
+      "fieldname": "param_name",
+      "fieldtype": "Data",
+      "label": "Parameter Name",
+      "in_list_view": 1,
+      "reqd": 1,
+      "description": "Internal name (snake_case, e.g. customer_name)"
+    },
+    {
+      "fieldname": "param_type",
+      "fieldtype": "Select",
+      "label": "Type",
+      "options": "String\nNumber\nDate\nBoolean\nSelect",
+      "default": "String",
+      "in_list_view": 1,
+      "reqd": 1
+    },
+    {
+      "fieldname": "column_break_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "param_description",
+      "fieldtype": "Data",
+      "label": "Description",
+      "in_list_view": 1,
+      "reqd": 1,
+      "description": "What this parameter represents (the AI reads this to fill it correctly)"
+    },
+    {
+      "fieldname": "required",
+      "fieldtype": "Check",
+      "label": "Required",
+      "default": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "column_break_2",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "default_value",
+      "fieldtype": "Data",
+      "label": "Default Value",
+      "description": "Optional default if the AI doesn't provide a value"
+    },
+    {
+      "fieldname": "select_options",
+      "fieldtype": "Data",
+      "label": "Select Options",
+      "description": "Comma-separated values for Select type (e.g. Daily,Weekly,Monthly)",
+      "depends_on": "eval:doc.param_type=='Select'"
+    }
+  ],
+  "permissions": [],
+  "links": [],
+  "actions": [],
+  "creation": "2026-02-14 12:30:00",
+  "modified": "2026-02-14 12:30:00",
+  "modified_by": "Administrator",
+  "owner": "Administrator"
+}

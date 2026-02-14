@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#056839"/>
+      <stop offset="100%" style="stop-color:#047e38"/>
+    </linearGradient>
+  </defs>
+  <circle cx="256" cy="256" r="240" fill="url(#bgGrad)"/>
+
+  <!-- Magnifying glass body -->
+  <circle cx="230" cy="225" r="100" fill="none" stroke="white" stroke-width="12" opacity="0.95"/>
+  <circle cx="230" cy="225" r="100" fill="white" opacity="0.12"/>
+
+  <!-- Magnifying glass handle -->
+  <line x1="305" y1="300" x2="395" y2="390" stroke="white" stroke-width="16" stroke-linecap="round" opacity="0.95"/>
+
+  <!-- Bar chart inside the lens -->
+  <rect x="175" y="230" width="22" height="50" rx="3" fill="#fac421" opacity="0.9"/>
+  <rect x="205" y="200" width="22" height="80" rx="3" fill="white" opacity="0.8"/>
+  <rect x="235" y="215" width="22" height="65" rx="3" fill="#fac421" opacity="0.9"/>
+  <rect x="265" y="190" width="22" height="90" rx="3" fill="white" opacity="0.8"/>
+
+  <!-- Sparkle at top of lens -->
+  <g transform="translate(290, 148)">
+    <path d="M 0 -18 C 2 -6, 6 -2, 18 0 C 6 2, 2 6, 0 18 C -2 6, -6 2, -18 0 C -6 -2, -2 -6, 0 -18 Z" fill="#fac421"/>
+  </g>
+
+  <!-- Small sparkle -->
+  <g transform="translate(155, 165)">
+    <path d="M 0 -12 C 1 -4, 4 -1, 12 0 C 4 1, 1 4, 0 12 C -1 4, -4 1, -12 0 C -4 -1, -1 -4, 0 -12 Z" fill="#fac421" opacity="0.7"/>
+  </g>
+</svg>

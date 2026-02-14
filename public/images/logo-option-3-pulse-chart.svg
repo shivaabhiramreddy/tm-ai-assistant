@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background circle with subtle gradient effect -->
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#047e38"/>
+      <stop offset="100%" style="stop-color:#056839"/>
+    </linearGradient>
+  </defs>
+  <circle cx="256" cy="256" r="240" fill="url(#bg)"/>
+
+  <!-- Chat bubble outline -->
+  <path d="M 120 140
+           Q 120 105, 155 105
+           L 357 105
+           Q 392 105, 392 140
+           L 392 290
+           Q 392 325, 357 325
+           L 210 325
+           L 160 380
+           L 172 325
+           L 155 325
+           Q 120 325, 120 290
+           Z"
+        fill="none" stroke="white" stroke-width="8" opacity="0.3"/>
+
+  <!-- Filled chat bubble (slightly smaller, inside) -->
+  <path d="M 135 150
+           Q 135 120, 165 120
+           L 347 120
+           Q 377 120, 377 150
+           L 377 280
+           Q 377 310, 347 310
+           L 208 310
+           L 165 360
+           L 176 310
+           L 165 310
+           Q 135 310, 135 280
+           Z"
+        fill="white" opacity="0.95"/>
+
+  <!-- Pulse/heartbeat line through the chat bubble -->
+  <polyline points="155,220 195,220 215,220 230,170 250,270 270,190 285,240 305,220 360,220"
+            fill="none" stroke="#047e38" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Small data dots on the pulse -->
+  <circle cx="230" cy="170" r="5" fill="#fac421"/>
+  <circle cx="250" cy="270" r="5" fill="#fac421"/>
+  <circle cx="270" cy="190" r="5" fill="#fac421"/>
+
+  <!-- Sparkle accent -->
+  <g transform="translate(380, 130)">
+    <path d="M 0 -18 C 2 -6, 6 -2, 18 0 C 6 2, 2 6, 0 18 C -2 6, -6 2, -18 0 C -6 -2, -2 -6, 0 -18 Z" fill="#fac421"/>
+  </g>
+</svg>

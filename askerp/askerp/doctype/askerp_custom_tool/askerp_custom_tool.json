@@ -1,0 +1,341 @@
+{
+  "name": "AskERP Custom Tool",
+  "module": "AskERP",
+  "doctype": "DocType",
+  "document_type": "Setup",
+  "issingle": 0,
+  "istable": 0,
+  "editable_grid": 0,
+  "track_changes": 1,
+  "engine": "InnoDB",
+  "autoname": "field:tool_name",
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "title_field": "display_name",
+  "show_title_field_in_link": 1,
+  "search_fields": "category,enabled",
+  "field_order": [
+    "section_tool_info",
+    "tool_name",
+    "display_name",
+    "column_break_info_1",
+    "enabled",
+    "category",
+    "column_break_info_2",
+    "is_read_only",
+    "requires_approval",
+
+    "section_description",
+    "description",
+
+    "section_parameters",
+    "parameters",
+
+    "section_query",
+    "query_type",
+    "query_doctype",
+    "column_break_query_1",
+    "query_limit",
+    "query_fields",
+    "query_filters_template",
+    "query_sql",
+    "query_method",
+
+    "section_output",
+    "output_format",
+    "output_template",
+
+    "section_safety",
+    "allowed_roles_html",
+    "allowed_roles",
+
+    "section_stats",
+    "usage_count",
+    "last_used",
+    "column_break_stats_1",
+    "avg_response_time_ms",
+    "error_count",
+
+    "section_test",
+    "test_panel_html"
+  ],
+  "fields": [
+    {
+      "fieldname": "section_tool_info",
+      "fieldtype": "Section Break",
+      "label": "Tool Information"
+    },
+    {
+      "fieldname": "tool_name",
+      "fieldtype": "Data",
+      "label": "Tool Name",
+      "unique": 1,
+      "reqd": 1,
+      "description": "Internal name (snake_case, e.g. check_customer_credit). This is what the AI uses to call the tool.",
+      "set_only_once": 1
+    },
+    {
+      "fieldname": "display_name",
+      "fieldtype": "Data",
+      "label": "Display Name",
+      "reqd": 1,
+      "description": "Human-readable name shown in the UI (e.g. Check Customer Credit Status)"
+    },
+    {
+      "fieldname": "column_break_info_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "enabled",
+      "fieldtype": "Check",
+      "label": "Enabled",
+      "default": 1,
+      "description": "When unchecked, the AI cannot use this tool"
+    },
+    {
+      "fieldname": "category",
+      "fieldtype": "Select",
+      "label": "Category",
+      "options": "Sales\nPurchase\nInventory\nFinance\nProduction\nHR\nCustom",
+      "default": "Custom",
+      "reqd": 1
+    },
+    {
+      "fieldname": "column_break_info_2",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "is_read_only",
+      "fieldtype": "Check",
+      "label": "Read Only (SELECT only)",
+      "default": 1,
+      "description": "Only allow read queries. Recommended for safety."
+    },
+    {
+      "fieldname": "requires_approval",
+      "fieldtype": "Check",
+      "label": "Requires Approval",
+      "default": 0,
+      "description": "If checked, the AI will tell the user this action needs admin approval before executing"
+    },
+
+    {
+      "fieldname": "section_description",
+      "fieldtype": "Section Break",
+      "label": "Description"
+    },
+    {
+      "fieldname": "description",
+      "fieldtype": "Small Text",
+      "label": "Description",
+      "reqd": 1,
+      "description": "Explain what this tool does. The AI reads this to decide when to use it. Be specific and clear."
+    },
+
+    {
+      "fieldname": "section_parameters",
+      "fieldtype": "Section Break",
+      "label": "Input Parameters"
+    },
+    {
+      "fieldname": "parameters",
+      "fieldtype": "Table",
+      "label": "Parameters",
+      "options": "AskERP Tool Parameter",
+      "description": "Define the inputs the AI needs to provide when calling this tool"
+    },
+
+    {
+      "fieldname": "section_query",
+      "fieldtype": "Section Break",
+      "label": "Query Configuration"
+    },
+    {
+      "fieldname": "query_type",
+      "fieldtype": "Select",
+      "label": "Query Type",
+      "options": "Frappe ORM\nRaw SQL\nAPI Method",
+      "default": "Frappe ORM",
+      "reqd": 1,
+      "description": "How to fetch data: Frappe ORM (recommended), Raw SQL (advanced), or API Method (custom Python)"
+    },
+    {
+      "fieldname": "query_doctype",
+      "fieldtype": "Link",
+      "label": "Doctype",
+      "options": "DocType",
+      "depends_on": "eval:doc.query_type=='Frappe ORM'",
+      "mandatory_depends_on": "eval:doc.query_type=='Frappe ORM'",
+      "description": "The ERPNext doctype to query"
+    },
+    {
+      "fieldname": "column_break_query_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "query_limit",
+      "fieldtype": "Int",
+      "label": "Max Rows",
+      "default": 50,
+      "description": "Maximum rows returned (safety limit)"
+    },
+    {
+      "fieldname": "query_fields",
+      "fieldtype": "Small Text",
+      "label": "Fields",
+      "depends_on": "eval:doc.query_type=='Frappe ORM'",
+      "description": "Comma-separated fields to return. Use * for all. Supports aggregation: SUM(grand_total) as total"
+    },
+    {
+      "fieldname": "query_filters_template",
+      "fieldtype": "Code",
+      "label": "Filters Template (JSON)",
+      "options": "JSON",
+      "depends_on": "eval:doc.query_type=='Frappe ORM'",
+      "description": "Frappe filter format with {{param}} placeholders. Example: {\"customer_name\": \"{{customer_name}}\", \"docstatus\": 1}"
+    },
+    {
+      "fieldname": "query_sql",
+      "fieldtype": "Code",
+      "label": "SQL Query",
+      "options": "SQL",
+      "depends_on": "eval:doc.query_type=='Raw SQL'",
+      "description": "SQL SELECT query with %(param)s placeholders. Table names: `tabDoctype`. Example: SELECT name, grand_total FROM `tabSales Invoice` WHERE customer=%(customer_name)s AND docstatus=1"
+    },
+    {
+      "fieldname": "query_method",
+      "fieldtype": "Data",
+      "label": "API Method",
+      "depends_on": "eval:doc.query_type=='API Method'",
+      "mandatory_depends_on": "eval:doc.query_type=='API Method'",
+      "description": "Dotted path to a whitelisted Python method. Example: askerp.custom_tools.check_credit"
+    },
+
+    {
+      "fieldname": "section_output",
+      "fieldtype": "Section Break",
+      "label": "Output Configuration",
+      "collapsible": 1
+    },
+    {
+      "fieldname": "output_format",
+      "fieldtype": "Select",
+      "label": "Output Format",
+      "options": "Table\nSummary\nJSON\nCustom",
+      "default": "Table",
+      "description": "How results are formatted before sending to the AI"
+    },
+    {
+      "fieldname": "output_template",
+      "fieldtype": "Code",
+      "label": "Output Template",
+      "options": "Jinja",
+      "depends_on": "eval:doc.output_format=='Custom'",
+      "description": "Jinja template for custom output formatting. Available: {{results}}, {{count}}, {{params}}"
+    },
+
+    {
+      "fieldname": "section_safety",
+      "fieldtype": "Section Break",
+      "label": "Access Control",
+      "collapsible": 1
+    },
+    {
+      "fieldname": "allowed_roles_html",
+      "fieldtype": "HTML",
+      "label": "",
+      "options": "<p class='text-muted' style='font-size:12px;'>Leave empty to allow all users. Add roles to restrict who can trigger this tool.</p>"
+    },
+    {
+      "fieldname": "allowed_roles",
+      "fieldtype": "Small Text",
+      "label": "Allowed Roles",
+      "description": "Comma-separated roles. Leave blank to allow all users. Example: System Manager, Accounts Manager, Sales Manager"
+    },
+
+    {
+      "fieldname": "section_stats",
+      "fieldtype": "Section Break",
+      "label": "Usage Statistics",
+      "collapsible": 1
+    },
+    {
+      "fieldname": "usage_count",
+      "fieldtype": "Int",
+      "label": "Times Used",
+      "default": 0,
+      "read_only": 1
+    },
+    {
+      "fieldname": "last_used",
+      "fieldtype": "Datetime",
+      "label": "Last Used",
+      "read_only": 1
+    },
+    {
+      "fieldname": "column_break_stats_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "avg_response_time_ms",
+      "fieldtype": "Int",
+      "label": "Avg Response Time (ms)",
+      "default": 0,
+      "read_only": 1
+    },
+    {
+      "fieldname": "error_count",
+      "fieldtype": "Int",
+      "label": "Error Count",
+      "default": 0,
+      "read_only": 1
+    },
+
+    {
+      "fieldname": "section_test",
+      "fieldtype": "Section Break",
+      "label": "Test Panel"
+    },
+    {
+      "fieldname": "test_panel_html",
+      "fieldtype": "HTML",
+      "label": ""
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1,
+      "submit": 0,
+      "cancel": 0,
+      "amend": 0,
+      "report": 1,
+      "import": 1,
+      "export": 1,
+      "print": 1
+    },
+    {
+      "role": "Administrator",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1,
+      "submit": 0,
+      "cancel": 0,
+      "amend": 0,
+      "report": 1,
+      "import": 1,
+      "export": 1,
+      "print": 1
+    }
+  ],
+  "links": [],
+  "actions": [],
+  "creation": "2026-02-14 12:30:00",
+  "modified": "2026-02-14 12:30:00",
+  "modified_by": "Administrator",
+  "owner": "Administrator"
+}

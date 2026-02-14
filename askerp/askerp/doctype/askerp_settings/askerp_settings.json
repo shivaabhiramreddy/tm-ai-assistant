@@ -1,0 +1,323 @@
+{
+  "name": "AskERP Settings",
+  "module": "AskERP",
+  "doctype": "DocType",
+  "document_type": "Setup",
+  "issingle": 1,
+  "engine": "InnoDB",
+  "field_order": [
+    "section_tier_defaults",
+    "tier_1_model", "tier_2_model",
+    "column_break_tier",
+    "tier_3_model", "utility_model",
+    "section_fallback",
+    "fallback_model",
+    "column_break_fallback",
+    "fallback_message",
+    "section_routing",
+    "enable_smart_routing", "vision_model",
+    "section_cost_control",
+    "monthly_budget_limit", "budget_warning_threshold",
+    "column_break_cost_control",
+    "budget_alert_email",
+    "section_access",
+    "default_daily_limit", "field_staff_daily_limit",
+    "section_recommendations",
+    "setup_guide_html",
+    "section_cache",
+    "cache_ttl_minutes", "enable_query_cache",
+    "column_break_cache",
+    "precompute_interval_minutes", "cache_max_entries",
+    "section_queue",
+    "enable_priority_queue",
+    "column_break_queue",
+    "executive_priority_roles", "manager_priority_roles",
+    "section_demo",
+    "demo_mode",
+    "section_setup_status",
+    "setup_complete",
+    "setup_completed_by",
+    "setup_completed_on",
+    "column_break_setup_status",
+    "setup_current_step"
+  ],
+  "fields": [
+    {
+      "fieldname": "section_tier_defaults",
+      "fieldtype": "Section Break",
+      "label": "Tier Model Defaults",
+      "description": "Assign a model to each tier. The smart router picks the cheapest tier that can handle the query."
+    },
+    {
+      "fieldname": "tier_1_model",
+      "fieldtype": "Link",
+      "label": "Tier 1 — Economy",
+      "options": "AskERP Model",
+      "description": "Cheapest model for greetings, simple lookups. e.g. Gemini Flash"
+    },
+    {
+      "fieldname": "tier_2_model",
+      "fieldtype": "Link",
+      "label": "Tier 2 — Standard",
+      "options": "AskERP Model",
+      "description": "Mid-range for comparisons, trends, standard analysis. e.g. Claude Sonnet"
+    },
+    {
+      "fieldname": "column_break_tier",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "tier_3_model",
+      "fieldtype": "Link",
+      "label": "Tier 3 — Premium",
+      "options": "AskERP Model",
+      "description": "Full-power for deep strategy, multi-tool analysis. e.g. Claude Opus"
+    },
+    {
+      "fieldname": "utility_model",
+      "fieldtype": "Link",
+      "label": "Utility Model",
+      "options": "AskERP Model",
+      "description": "Cheap model for background tasks: session titles, summaries. e.g. Haiku"
+    },
+    {
+      "fieldname": "section_fallback",
+      "fieldtype": "Section Break",
+      "label": "Fallback Configuration"
+    },
+    {
+      "fieldname": "fallback_model",
+      "fieldtype": "Link",
+      "label": "Fallback Model",
+      "options": "AskERP Model",
+      "description": "If the primary model fails, try this model before giving up"
+    },
+    {
+      "fieldname": "column_break_fallback",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "fallback_message",
+      "fieldtype": "Small Text",
+      "label": "Fallback Message",
+      "default": "I'm temporarily unable to help right now. Please try again in a few minutes, or contact your admin if this persists.",
+      "description": "Friendly message shown when ALL models fail. No technical errors ever reach the user."
+    },
+    {
+      "fieldname": "section_routing",
+      "fieldtype": "Section Break",
+      "label": "Routing"
+    },
+    {
+      "fieldname": "enable_smart_routing",
+      "fieldtype": "Check",
+      "label": "Enable Smart Routing",
+      "default": "1",
+      "description": "Automatically pick the cheapest tier based on query complexity. If disabled, all queries use the Tier 3 model."
+    },
+    {
+      "fieldname": "vision_model",
+      "fieldtype": "Link",
+      "label": "Vision Model",
+      "options": "AskERP Model",
+      "description": "Model to use for image/file analysis. Must support Vision."
+    },
+    {
+      "fieldname": "section_cost_control",
+      "fieldtype": "Section Break",
+      "label": "Cost Control"
+    },
+    {
+      "fieldname": "monthly_budget_limit",
+      "fieldtype": "Float",
+      "label": "Monthly Budget Limit ($)",
+      "default": "0",
+      "precision": "2",
+      "description": "Monthly API spend cap in USD. 0 = unlimited. Uses AI Usage Log cost_total to track."
+    },
+    {
+      "fieldname": "budget_warning_threshold",
+      "fieldtype": "Int",
+      "label": "Warning at % of Budget",
+      "default": "80",
+      "description": "Send email alert when this percentage of monthly budget is consumed"
+    },
+    {
+      "fieldname": "column_break_cost_control",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "budget_alert_email",
+      "fieldtype": "Data",
+      "label": "Budget Alert Email",
+      "options": "Email",
+      "description": "Email address for budget warning notifications"
+    },
+    {
+      "fieldname": "section_access",
+      "fieldtype": "Section Break",
+      "label": "Default Access Limits"
+    },
+    {
+      "fieldname": "default_daily_limit",
+      "fieldtype": "Int",
+      "label": "Default Daily Limit",
+      "default": "50",
+      "description": "Default queries per day for roles not listed in any model's rate limit table"
+    },
+    {
+      "fieldname": "field_staff_daily_limit",
+      "fieldtype": "Int",
+      "label": "Field Staff Daily Limit",
+      "default": "30",
+      "description": "Default for field staff roles (Sales User, Stock User, etc.)"
+    },
+    {
+      "fieldname": "section_recommendations",
+      "fieldtype": "Section Break",
+      "label": "Setup Recommendations",
+      "collapsible": 1
+    },
+    {
+      "fieldname": "setup_guide_html",
+      "fieldtype": "HTML",
+      "label": "Setup Guide",
+      "options": "<div style='padding:10px; background:#f5f7fa; border-radius:8px; font-size:13px;'><h4>Recommended Configuration</h4><table style='width:100%; border-collapse:collapse; margin:10px 0;'><tr style='background:#e8f5e9;'><th style='padding:8px; text-align:left; border:1px solid #ddd;'>Tier</th><th style='padding:8px; text-align:left; border:1px solid #ddd;'>Recommended</th><th style='padding:8px; text-align:left; border:1px solid #ddd;'>Est. Cost</th><th style='padding:8px; text-align:left; border:1px solid #ddd;'>Use For</th></tr><tr><td style='padding:8px; border:1px solid #ddd;'>Tier 1</td><td style='padding:8px; border:1px solid #ddd;'>Gemini Flash</td><td style='padding:8px; border:1px solid #ddd;'>$2-5/mo</td><td style='padding:8px; border:1px solid #ddd;'>Greetings, simple lookups</td></tr><tr><td style='padding:8px; border:1px solid #ddd;'>Tier 2</td><td style='padding:8px; border:1px solid #ddd;'>Claude Sonnet</td><td style='padding:8px; border:1px solid #ddd;'>$15-30/mo</td><td style='padding:8px; border:1px solid #ddd;'>Comparisons, standard analysis</td></tr><tr><td style='padding:8px; border:1px solid #ddd;'>Tier 3</td><td style='padding:8px; border:1px solid #ddd;'>Claude Opus</td><td style='padding:8px; border:1px solid #ddd;'>$50-100/mo</td><td style='padding:8px; border:1px solid #ddd;'>Deep strategy, forecasting</td></tr><tr><td style='padding:8px; border:1px solid #ddd;'>Utility</td><td style='padding:8px; border:1px solid #ddd;'>Claude Haiku</td><td style='padding:8px; border:1px solid #ddd;'>$1-3/mo</td><td style='padding:8px; border:1px solid #ddd;'>Titles, summaries</td></tr></table><h4>Rate Limits</h4><p>System Manager: 200/day | Accounts Manager: 100/day | Sales/Purchase: 80/day | Stock: 60/day | Default: 50/day | Field Staff: 30/day</p><h4>Monthly Budget</h4><p>Conservative: $60/mo | Standard: $180/mo | Heavy: $360/mo</p></div>",
+      "read_only": 1
+    },
+    {
+      "fieldname": "section_cache",
+      "fieldtype": "Section Break",
+      "label": "Caching & Performance",
+      "description": "Cache AI query results to reduce costs and speed up repeated questions."
+    },
+    {
+      "fieldname": "cache_ttl_minutes",
+      "fieldtype": "Int",
+      "label": "Cache TTL (minutes)",
+      "default": "15",
+      "description": "How long to cache identical query results. 0 = caching disabled."
+    },
+    {
+      "fieldname": "enable_query_cache",
+      "fieldtype": "Check",
+      "label": "Enable Query Cache",
+      "default": "1",
+      "description": "Cache tool results in Redis. If 10 users ask the same question within TTL, only the first hits the AI."
+    },
+    {
+      "fieldname": "column_break_cache",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "precompute_interval_minutes",
+      "fieldtype": "Int",
+      "label": "Pre-compute Interval (min)",
+      "default": "60",
+      "description": "How often to refresh cached business metrics (revenue, receivables, etc). 0 = disabled."
+    },
+    {
+      "fieldname": "cache_max_entries",
+      "fieldtype": "Int",
+      "label": "Max Cache Entries",
+      "default": "500",
+      "description": "Maximum number of cached query results to keep. Oldest entries are evicted first."
+    },
+    {
+      "fieldname": "section_queue",
+      "fieldtype": "Section Break",
+      "label": "Queue Priority",
+      "description": "When multiple users query simultaneously, executives get served first."
+    },
+    {
+      "fieldname": "enable_priority_queue",
+      "fieldtype": "Check",
+      "label": "Enable Priority Queue",
+      "default": "1",
+      "description": "Route executive queries ahead of field staff queries."
+    },
+    {
+      "fieldname": "column_break_queue",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "executive_priority_roles",
+      "fieldtype": "Small Text",
+      "label": "Executive Roles (Priority 1)",
+      "default": "System Manager,Accounts Manager",
+      "description": "Comma-separated role names. These users get immediate processing."
+    },
+    {
+      "fieldname": "manager_priority_roles",
+      "fieldtype": "Small Text",
+      "label": "Manager Roles (Priority 2)",
+      "default": "Sales Manager,Purchase Manager,Stock Manager,Manufacturing Manager",
+      "description": "Comma-separated role names. These users get next-available processing."
+    },
+    {
+      "fieldname": "section_demo",
+      "fieldtype": "Section Break",
+      "label": "Demo Mode",
+      "collapsible": 1,
+      "description": "Demo mode responds with sample data instead of querying an AI provider. Activates automatically when no API keys are configured."
+    },
+    {
+      "fieldname": "demo_mode",
+      "fieldtype": "Check",
+      "label": "Force Demo Mode",
+      "default": "0",
+      "description": "Enable to force demo mode even when API keys are configured. Useful for demonstrations and training."
+    },
+    {
+      "fieldname": "section_setup_status",
+      "fieldtype": "Section Break",
+      "label": "Setup Status",
+      "collapsible": 1
+    },
+    {
+      "fieldname": "setup_complete",
+      "fieldtype": "Check",
+      "label": "Setup Complete",
+      "default": "0",
+      "read_only": 1,
+      "description": "Automatically set when the Setup Wizard finishes all steps"
+    },
+    {
+      "fieldname": "setup_completed_by",
+      "fieldtype": "Link",
+      "label": "Completed By",
+      "options": "User",
+      "read_only": 1
+    },
+    {
+      "fieldname": "setup_completed_on",
+      "fieldtype": "Datetime",
+      "label": "Completed On",
+      "read_only": 1
+    },
+    {
+      "fieldname": "column_break_setup_status",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "setup_current_step",
+      "fieldtype": "Int",
+      "label": "Last Completed Step",
+      "default": "0",
+      "read_only": 1,
+      "description": "Tracks progress for skip/resume. 0=not started, 1-5=step number."
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1
+    }
+  ],
+  "sort_field": "creation",
+  "sort_order": "ASC",
+  "track_changes": 1,
+  "index_web_pages_for_search": 0
+}
