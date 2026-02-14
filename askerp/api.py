@@ -37,6 +37,21 @@ MAX_CONTEXT_MESSAGES = 20  # Max messages to send to Claude for context
 MAX_STORED_MESSAGES = 100  # Max messages to store per session (pruning threshold)
 
 
+# ─── Tier-to-Complexity mapping for AI Usage Log ────────────────────────────
+# classify_query() returns tiers like "tier_1", "tier_2", "tier_3"
+# but the AI Usage Log complexity Select field expects "flash", "simple", "complex"
+_TIER_TO_COMPLEXITY = {
+    "tier_1": "flash",
+    "tier_2": "simple",
+    "tier_3": "complex",
+}
+
+
+def _map_tier_to_complexity(tier_value):
+    """Map internal tier names to Usage Log complexity values."""
+    return _TIER_TO_COMPLEXITY.get(tier_value, "")
+
+
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def _get_daily_limit(user):
@@ -540,7 +555,7 @@ def chat(message, session_id=None):
                 "tool_calls": result.get("tool_calls", 0),
                 "cache_read_tokens": usage.get("cache_read_tokens", 0),
                 "cache_creation_tokens": usage.get("cache_creation_tokens", 0),
-                "complexity": result.get("tier", ""),
+                "complexity": _map_tier_to_complexity(result.get("tier", "")),
                 "cost_input": cost.get("cost_input", 0),
                 "cost_output": cost.get("cost_output", 0),
                 "cost_total": cost.get("cost_total", 0),
@@ -878,7 +893,7 @@ def _run_stream_job(stream_id, user, message, session_name, session_id_str,
                 "tool_calls": result.get("tool_calls", 0),
                 "cache_read_tokens": usage.get("cache_read_tokens", 0),
                 "cache_creation_tokens": usage.get("cache_creation_tokens", 0),
-                "complexity": result.get("tier", ""),
+                "complexity": _map_tier_to_complexity(result.get("tier", "")),
                 "cost_input": cost.get("cost_input", 0),
                 "cost_output": cost.get("cost_output", 0),
                 "cost_total": cost.get("cost_total", 0),

@@ -102,9 +102,12 @@ def _call_anthropic(model_doc, messages, system_prompt, tools=None):
         "messages": messages,
     }
 
-    # Adaptive thinking for models that support it
+    # Extended thinking for models that support it
+    # Note: Opus 4.5 / Sonnet 4.5 require "type": "enabled" with budget_tokens.
+    # "type": "adaptive" is only supported on Opus 4.6+.
     if model_doc.supports_thinking:
-        payload["thinking"] = {"type": "adaptive"}
+        thinking_budget = min(max_tokens // 2, 8192)
+        payload["thinking"] = {"type": "enabled", "budget_tokens": thinking_budget}
 
     # Tool definitions with cache control on last tool
     if tools:
@@ -129,6 +132,20 @@ def _call_anthropic(model_doc, messages, system_prompt, tools=None):
             if resp.status_code == 200:
                 data = resp.json()
                 return _normalize_anthropic_response(data)
+
+            # If thinking caused a 400 error, retry without it
+            if resp.status_code == 400 and "thinking" in payload:
+                error_text = resp.text[:500].lower()
+                if "thinking" in error_text or "adaptive" in error_text:
+                    frappe.log_error(
+                        title="Anthropic Thinking Fallback",
+                        message=f"Model {model_doc.model_id} doesn't support thinking. Retrying without it."
+                    )
+                    del payload["thinking"]
+                    resp = requests.post(base_url, json=payload, headers=headers, timeout=180)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        return _normalize_anthropic_response(data)
 
             _log_api_error("Anthropic", model_doc.model_id, resp.status_code, resp.text[:500], attempt)
 
@@ -187,8 +204,10 @@ def _call_anthropic_stream(model_doc, messages, system_prompt, tools=None):
         "messages": messages,
     }
 
+    # Extended thinking: use "enabled" with budget_tokens (not "adaptive")
     if model_doc.supports_thinking:
-        payload["thinking"] = {"type": "adaptive"}
+        thinking_budget = min(max_tokens // 2, 8192)
+        payload["thinking"] = {"type": "enabled", "budget_tokens": thinking_budget}
 
     if tools:
         cached_tools = [t.copy() for t in tools]
@@ -207,9 +226,22 @@ def _call_anthropic_stream(model_doc, messages, system_prompt, tools=None):
         resp = requests.post(base_url, json=payload, headers=headers, timeout=180, stream=True)
         if resp.status_code == 200:
             return resp  # Return raw response for SSE parsing
-        else:
-            _log_api_error("Anthropic Stream", model_doc.model_id, resp.status_code, resp.text[:500], 0)
-            return None
+
+        # If thinking caused a 400 error, retry without it
+        if resp.status_code == 400 and "thinking" in payload:
+            error_text = resp.text[:500].lower()
+            if "thinking" in error_text or "adaptive" in error_text:
+                frappe.log_error(
+                    title="Anthropic Stream Thinking Fallback",
+                    message=f"Model {model_doc.model_id} doesn't support thinking. Retrying without it."
+                )
+                del payload["thinking"]
+                resp = requests.post(base_url, json=payload, headers=headers, timeout=180, stream=True)
+                if resp.status_code == 200:
+                    return resp
+
+        _log_api_error("Anthropic Stream", model_doc.model_id, resp.status_code, resp.text[:500], 0)
+        return None
     except Exception as e:
         _log_api_error("Anthropic Stream", model_doc.model_id, 0, str(e)[:200], 0)
         return None
