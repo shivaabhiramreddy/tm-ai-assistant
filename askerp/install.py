@@ -15,6 +15,7 @@ def after_install():
     """Main entry point called by hooks.py after app install."""
     _create_custom_fields_on_user()
     _create_default_models()
+    frappe.db.commit()  # Commit models so _create_default_settings can query them
     _create_default_settings()
     _create_default_business_profile()
     _create_default_prompt_templates()
@@ -311,7 +312,7 @@ def _create_default_business_profile():
         "ingredients at our state-of-the-art plant."
     )
     profile.location = "Nellore, Andhra Pradesh, India"
-    profile.company_size = "51-200"
+    profile.company_size = "51-200 employees"
     profile.currency = "INR"
     profile.financial_year_start = "April"
 
@@ -401,15 +402,7 @@ def _create_default_business_profile():
         "Standard credit terms for established customers, "
         "advance payment for new customers."
     )
-    profile.financial_analysis_depth = (
-        "CFO-level analysis: Revenue analysis (gross, net, by company/territory/"
-        "customer/product/salesperson), Profitability analysis (gross margin, "
-        "product-wise, territory-wise), Working capital intelligence (DSO, DPO, "
-        "DIO, cash conversion cycle), Collection efficiency with aging, "
-        "Cost analysis (purchase trends, per-unit production cost), "
-        "Key ratios (current ratio, gross margin %, net profit margin %, "
-        "ROA, D/E, revenue per employee)"
-    )
+    profile.financial_analysis_depth = "CFO-Level (full financial intelligence)"
 
     # Section 6: Terminology & Language
     profile.custom_terminology = (
@@ -442,7 +435,7 @@ def _create_default_business_profile():
     profile.primary_language = "English"
 
     # Section 7: AI Behavior Preferences
-    profile.response_length = "Detailed"
+    profile.response_length = "Detailed (full analysis with tables)"
     profile.number_format = "Indian (Lakhs, Crores)"
     profile.executive_focus = (
         "- Revenue vs target\n"
