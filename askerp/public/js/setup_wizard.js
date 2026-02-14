@@ -941,7 +941,7 @@
     document.getElementById("askerp-wizard-notif-dismiss").addEventListener("click", function () {
       removeNotification();
       // Remember dismissal for this session
-      try { sessionStorage.setItem("tm_wizard_dismissed", "1"); } catch (e) { /* ignore */ }
+      try { sessionStorage.setItem("askerp_wizard_dismissed", "1"); } catch (e) { /* ignore */ }
     });
   }
 
@@ -1004,7 +1004,7 @@
 
     // Check if dismissed this session
     try {
-      if (sessionStorage.getItem("tm_wizard_dismissed") === "1") {
+      if (sessionStorage.getItem("askerp_wizard_dismissed") === "1") {
         showNotification();
         return;
       }

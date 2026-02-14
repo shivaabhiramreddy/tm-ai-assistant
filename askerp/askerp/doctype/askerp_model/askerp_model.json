@@ -97,8 +97,8 @@
       "fieldname": "api_key",
       "fieldtype": "Password",
       "label": "API Key",
-      "reqd": 1,
-      "description": "Encrypted at rest by Frappe. For Anthropic: the x-api-key. For Google: the API key. For OpenAI: the Bearer token."
+      "reqd": 0,
+      "description": "Encrypted at rest by Frappe. For Anthropic: the x-api-key. For Google: the API key. For OpenAI: the Bearer token. Set via AskERP Settings after install."
     },
     {
       "fieldname": "api_secret",

@@ -71,6 +71,7 @@ def _create_default_models():
             "model_name": "Claude Haiku 4.5",
             "model_id": "claude-haiku-4-5-20251001",
             "provider": "Anthropic",
+            "tier": "Tier 1 (Economy)",
             "api_base_url": "https://api.anthropic.com/v1/messages",
             "api_version": "2023-06-01",
             "max_output_tokens": 4096,
@@ -97,6 +98,7 @@ def _create_default_models():
             "model_name": "Claude Sonnet 4.5",
             "model_id": "claude-sonnet-4-5-20250929",
             "provider": "Anthropic",
+            "tier": "Tier 2 (Standard)",
             "api_base_url": "https://api.anthropic.com/v1/messages",
             "api_version": "2023-06-01",
             "max_output_tokens": 8192,
@@ -123,6 +125,7 @@ def _create_default_models():
             "model_name": "Claude Opus 4.5",
             "model_id": "claude-opus-4-5-20251101",
             "provider": "Anthropic",
+            "tier": "Tier 3 (Premium)",
             "api_base_url": "https://api.anthropic.com/v1/messages",
             "api_version": "2023-06-01",
             "max_output_tokens": 16384,
@@ -149,6 +152,7 @@ def _create_default_models():
             "model_name": "Gemini 2.0 Flash",
             "model_id": "gemini-2.0-flash",
             "provider": "Google",
+            "tier": "Tier 1 (Economy)",
             "api_base_url": "https://generativelanguage.googleapis.com/v1beta/models",
             "max_output_tokens": 4096,
             "supports_tools": 1,
@@ -278,7 +282,11 @@ def _create_default_business_profile():
     try:
         profile = frappe.get_single("AskERP Business Profile")
     except frappe.DoesNotExistError:
-        profile = frappe.get_doc({"doctype": "AskERP Business Profile"})
+        # company_name is mandatory — provide a placeholder that gets overwritten below
+        profile = frappe.get_doc({
+            "doctype": "AskERP Business Profile",
+            "company_name": frappe.db.get_default("Company") or "My Company",
+        })
         profile.insert(ignore_permissions=True)
         profile = frappe.get_single("AskERP Business Profile")
 
