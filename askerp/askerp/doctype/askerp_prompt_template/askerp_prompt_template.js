@@ -295,13 +295,13 @@ function _render_variable_reference(frm) {
 
     // Search box
     html += '<div style="margin-bottom: 12px;">';
-    html += '<input type="text" id="tm-var-search" placeholder="Search variables..." ';
+    html += '<input type="text" id="askerp-var-search" placeholder="Search variables..." ';
     html += 'style="width: 100%; padding: 8px 12px; border: 1px solid #d1d8dd; border-radius: 6px; font-size: 13px;" />';
     html += '</div>';
 
     // Variable grid
     for (var cat in categories) {
-        html += '<div class="tm-var-category" style="margin-bottom: 14px;">';
+        html += '<div class="askerp-var-category" style="margin-bottom: 14px;">';
         html += '<div style="font-size: 13px; font-weight: 600; color: #333; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid #eee;">';
         html += _get_category_icon(cat) + ' ' + cat;
         html += '</div>';
@@ -310,7 +310,7 @@ function _render_variable_reference(frm) {
         var vars = categories[cat];
         for (var vname in vars) {
             var vdesc = vars[vname];
-            html += '<span class="tm-var-chip" data-var="' + vname + '" ';
+            html += '<span class="askerp-var-chip" data-var="' + vname + '" ';
             html += 'title="' + _escape_html(vdesc) + '" ';
             html += 'style="display: inline-block; padding: 4px 10px; background: #f4f5f6; ';
             html += 'border: 1px solid #d1d8dd; border-radius: 12px; font-size: 11px; ';
@@ -331,7 +331,7 @@ function _render_variable_reference(frm) {
     wrapper.$wrapper.html(html);
 
     // Click handler — copy variable to clipboard
-    wrapper.$wrapper.find(".tm-var-chip").on("click", function () {
+    wrapper.$wrapper.find(".askerp-var-chip").on("click", function () {
         var varName = $(this).data("var");
         var varText = "{{" + varName + "}}";
 
@@ -356,9 +356,9 @@ function _render_variable_reference(frm) {
     });
 
     // Search filter
-    wrapper.$wrapper.find("#tm-var-search").on("input", function () {
+    wrapper.$wrapper.find("#askerp-var-search").on("input", function () {
         var query = $(this).val().toLowerCase();
-        wrapper.$wrapper.find(".tm-var-chip").each(function () {
+        wrapper.$wrapper.find(".askerp-var-chip").each(function () {
             var varName = $(this).data("var").toLowerCase();
             var varTitle = ($(this).attr("title") || "").toLowerCase();
             if (varName.indexOf(query) !== -1 || varTitle.indexOf(query) !== -1) {
@@ -368,8 +368,8 @@ function _render_variable_reference(frm) {
             }
         });
         // Hide empty categories
-        wrapper.$wrapper.find(".tm-var-category").each(function () {
-            var visibleChips = $(this).find(".tm-var-chip:visible").length;
+        wrapper.$wrapper.find(".askerp-var-category").each(function () {
+            var visibleChips = $(this).find(".askerp-var-chip:visible").length;
             if (visibleChips === 0) {
                 $(this).hide();
             } else {

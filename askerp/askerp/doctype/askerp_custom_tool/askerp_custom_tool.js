@@ -120,7 +120,7 @@ function _render_test_panel(frm) {
             html += '</label>';
 
             if (p.param_type === "Select" && p.select_options) {
-                html += '<select class="tm-test-param form-control" data-param="' + _escape_html(p.param_name) + '" ';
+                html += '<select class="askerp-test-param form-control" data-param="' + _escape_html(p.param_name) + '" ';
                 html += 'style="flex: 1; max-width: 300px; font-size: 13px;">';
                 html += '<option value="">Select...</option>';
                 var opts = p.select_options.split(",");
@@ -130,14 +130,14 @@ function _render_test_panel(frm) {
                 }
                 html += '</select>';
             } else if (p.param_type === "Boolean") {
-                html += '<select class="tm-test-param form-control" data-param="' + _escape_html(p.param_name) + '" ';
+                html += '<select class="askerp-test-param form-control" data-param="' + _escape_html(p.param_name) + '" ';
                 html += 'style="flex: 1; max-width: 300px; font-size: 13px;">';
                 html += '<option value="">Select...</option>';
                 html += '<option value="1">Yes / True</option>';
                 html += '<option value="0">No / False</option>';
                 html += '</select>';
             } else {
-                html += '<input type="' + input_type + '" class="tm-test-param form-control" ';
+                html += '<input type="' + input_type + '" class="askerp-test-param form-control" ';
                 html += 'data-param="' + _escape_html(p.param_name) + '" ';
                 html += 'placeholder="' + _escape_html(placeholder) + '" ';
                 if (p.default_value) html += 'value="' + _escape_html(p.default_value) + '" ';
@@ -153,14 +153,14 @@ function _render_test_panel(frm) {
     }
 
     // Run Test button
-    html += '<button class="btn btn-primary btn-sm tm-run-test" style="margin-bottom: 16px;">Run Test</button>';
-    html += ' <button class="btn btn-default btn-sm tm-clear-results" style="margin-bottom: 16px;">Clear Results</button>';
+    html += '<button class="btn btn-primary btn-sm askerp-run-test" style="margin-bottom: 16px;">Run Test</button>';
+    html += ' <button class="btn btn-default btn-sm askerp-clear-results" style="margin-bottom: 16px;">Clear Results</button>';
 
     // Results area
-    html += '<div id="tm-test-results" style="display: none;">';
+    html += '<div id="askerp-test-results" style="display: none;">';
     html += '<div style="font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #333;">Results:</div>';
-    html += '<div id="tm-test-meta" style="background: #f0f4f7; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; font-size: 12px; color: #666;"></div>';
-    html += '<pre id="tm-test-output" style="background: #1e1e1e; color: #d4d4d4; padding: 16px; border-radius: 8px; ';
+    html += '<div id="askerp-test-meta" style="background: #f0f4f7; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; font-size: 12px; color: #666;"></div>';
+    html += '<pre id="askerp-test-output" style="background: #1e1e1e; color: #d4d4d4; padding: 16px; border-radius: 8px; ';
     html += 'font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; ';
     html += 'max-height: 400px; overflow-y: auto;"></pre>';
     html += '</div>';
@@ -170,13 +170,13 @@ function _render_test_panel(frm) {
     wrapper.$wrapper.html(html);
 
     // Run Test click handler
-    wrapper.$wrapper.find(".tm-run-test").on("click", function () {
+    wrapper.$wrapper.find(".askerp-run-test").on("click", function () {
         _run_tool_test(frm, wrapper);
     });
 
     // Clear results
-    wrapper.$wrapper.find(".tm-clear-results").on("click", function () {
-        wrapper.$wrapper.find("#tm-test-results").hide();
+    wrapper.$wrapper.find(".askerp-clear-results").on("click", function () {
+        wrapper.$wrapper.find("#askerp-test-results").hide();
     });
 }
 
@@ -184,7 +184,7 @@ function _render_test_panel(frm) {
 function _run_tool_test(frm, wrapper) {
     // Collect parameter values
     var test_params = {};
-    wrapper.$wrapper.find(".tm-test-param").each(function () {
+    wrapper.$wrapper.find(".askerp-test-param").each(function () {
         var pname = $(this).data("param");
         var val = $(this).val();
         if (val !== "" && val !== null && val !== undefined) {
@@ -217,9 +217,9 @@ function _run_tool_test(frm, wrapper) {
             }
 
             var res = r.message;
-            var results_div = wrapper.$wrapper.find("#tm-test-results");
-            var meta_div = wrapper.$wrapper.find("#tm-test-meta");
-            var output_div = wrapper.$wrapper.find("#tm-test-output");
+            var results_div = wrapper.$wrapper.find("#askerp-test-results");
+            var meta_div = wrapper.$wrapper.find("#askerp-test-meta");
+            var output_div = wrapper.$wrapper.find("#askerp-test-output");
 
             results_div.show();
 

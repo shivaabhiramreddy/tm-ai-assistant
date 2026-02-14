@@ -282,20 +282,19 @@ def _create_default_business_profile():
 
     try:
         profile = frappe.get_single("AskERP Business Profile")
+        # Profile already exists — skip pre-fill if admin already configured it
+        # Use 'industry' as sentinel: it's only set by pre-fill or manual config
+        if profile.industry and len(str(profile.industry).strip()) >= 3:
+            print("  AskERP Business Profile already configured — skipping.")
+            return
     except frappe.DoesNotExistError:
-        # company_name is mandatory — provide a placeholder that gets overwritten below
+        # Brand new install — create minimal profile (company_name is mandatory)
         profile = frappe.get_doc({
             "doctype": "AskERP Business Profile",
             "company_name": frappe.db.get_default("Company") or "My Company",
         })
         profile.insert(ignore_permissions=True)
         profile = frappe.get_single("AskERP Business Profile")
-
-    # Only pre-fill if the profile is essentially empty
-    # (company_name not set = brand new installation)
-    if profile.company_name and len(str(profile.company_name).strip()) >= 3:
-        print("  AskERP Business Profile already configured — skipping.")
-        return
 
     # ─── FGIPL Pre-Fill Data ─────────────────────────────────────────────
     # Source: docs/FGIPL-BUSINESS-PROFILE-DATA.md
