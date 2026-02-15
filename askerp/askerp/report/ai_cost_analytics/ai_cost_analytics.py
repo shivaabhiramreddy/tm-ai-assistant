@@ -1,4 +1,4 @@
-# Copyright (c) 2026, Fertile Green Industries Pvt Ltd and contributors
+# Copyright (c) 2026, Cogniverse and contributors
 # License: MIT
 #
 # AI Cost Analytics — Script Report

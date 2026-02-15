@@ -9,3 +9,17 @@ build/
 .env
 node_modules/
 .DS_Store
+
+# Deploy scripts (one-time use, not part of the app)
+DEPLOY_*.sh
+
+# Audit/validation reports (archived locally, not part of the app)
+AUDIT-REPORT.md
+HARDCODED-*.md
+IMPLEMENTATION-PLAN-*.md
+ITEM-BY-ITEM-AUDIT.md
+PHASE*-VALIDATION-REPORT.md
+PRE-DEPLOYMENT-CHECKLIST.md
+VALIDATION-*.md
+VALIDATION-*.txt
+compile_check.log

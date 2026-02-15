@@ -11,6 +11,7 @@ The scheduler checks hourly which reports are due and generates them.
 import json
 import frappe
 from datetime import datetime
+from askerp.formatting import get_trading_name
 
 
 def check_scheduled_reports():
@@ -216,7 +217,7 @@ def _email_report(report, file_info, summary_text):
     try:
         frappe.sendmail(
             recipients=recipients,
-            subject=f"TM Scheduled Report: {report.report_name}",
+            subject=f"{get_trading_name()} Report: {report.report_name}",
             message=(
                 f"<div style='font-family: Arial, sans-serif; max-width: 600px;'>"
                 f"<h3>📊 {report.report_name}</h3>"

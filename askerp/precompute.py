@@ -25,6 +25,7 @@ from frappe.utils import (
     now_datetime, today, get_first_day, get_last_day,
     getdate, flt, fmt_money,
 )
+from askerp.formatting import format_currency, get_fy_dates
 
 
 # ─── Token Replacement ──────────────────────────────────────────────────────
@@ -39,13 +40,10 @@ def _get_dynamic_tokens():
     month_start = get_first_day(today_date)
     month_end = get_last_day(today_date)
 
-    # Indian financial year: Apr 1 – Mar 31
-    if today_date.month >= 4:
-        fy_start = getdate(f"{today_date.year}-04-01")
-        fy_end = getdate(f"{today_date.year + 1}-03-31")
-    else:
-        fy_start = getdate(f"{today_date.year - 1}-04-01")
-        fy_end = getdate(f"{today_date.year}-03-31")
+    # Financial year from AskERP Business Profile (supports any FY start month)
+    fy_info = get_fy_dates()
+    fy_start = fy_info["fy_start"]
+    fy_end = fy_info["fy_end"]
 
     # Last month
     if today_date.month == 1:
@@ -72,29 +70,6 @@ def _replace_tokens(text, tokens):
     for token, value in tokens.items():
         text = text.replace(token, value)
     return text
-
-
-# ─── Indian Number Formatting ───────────────────────────────────────────────
-
-def _format_indian(value):
-    """
-    Format a number in Indian notation with ₹ prefix.
-    Examples: 45,23,000 → ₹45.23 L, 2,15,00,000 → ₹2.15 Cr
-    """
-    if value is None:
-        return "₹0"
-    val = flt(value)
-    abs_val = abs(val)
-    sign = "-" if val < 0 else ""
-
-    if abs_val >= 1_00_00_000:  # 1 Crore
-        return f"{sign}₹{abs_val / 1_00_00_000:.2f} Cr"
-    elif abs_val >= 1_00_000:  # 1 Lakh
-        return f"{sign}₹{abs_val / 1_00_000:.2f} L"
-    elif abs_val >= 1_000:
-        return f"{sign}₹{abs_val / 1_000:.2f} K"
-    else:
-        return f"{sign}₹{abs_val:.2f}"
 
 
 # ─── Metric Computation ────────────────────────────────────────────────────
@@ -203,7 +178,7 @@ def refresh_cached_metrics():
                 errors += 1
             else:
                 updates["cached_value"] = flt(value, 2)
-                updates["cached_value_formatted"] = _format_indian(value)
+                updates["cached_value_formatted"] = format_currency(value)
                 updates["error_message"] = ""
                 computed += 1
 
@@ -264,7 +239,7 @@ def get_cached_metrics(category=None, company=None):
             "metric_name": m.metric_name,
             "label": m.metric_label,
             "value": flt(m.cached_value),
-            "formatted": m.cached_value_formatted or _format_indian(m.cached_value),
+            "formatted": m.cached_value_formatted or format_currency(m.cached_value),
             "category": m.category,
             "company": m.company,
             "last_computed": str(m.last_computed) if m.last_computed else None,

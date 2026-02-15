@@ -1,6 +1,6 @@
 app_name = "askerp"
 app_title = "AskERP"
-app_publisher = "Fertile Green Industries Pvt Ltd"
+app_publisher = "Cogniverse"
 app_description = "AI-powered business intelligence for ERPNext. Chat with your ERP data using Claude, Gemini, or GPT."
 app_email = "shivaabhiramreddy@gmail.com"
 app_license = "MIT"
@@ -17,6 +17,9 @@ app_include_css = "/assets/askerp/css/chat_widget.css"
 
 # Post-install hook — creates default AI models and settings
 after_install = "askerp.install.after_install"
+
+# Post-uninstall hook — removes custom fields, clears caches, cleans up
+after_uninstall = "askerp.uninstall.after_uninstall"
 
 # Boot session hook — injects setup_complete flag for wizard notification bar
 boot_session = "askerp.setup_wizard.boot_session"
@@ -39,6 +42,9 @@ override_whitelisted_methods = {}
 # Doc Events — Clear caches when configuration doctypes are saved
 # Phase 6.1: Also clear query cache when core business data changes
 doc_events = {
+    "AskERP Settings": {
+        "after_save": "askerp.classifier._reset_custom_patterns_cache",
+    },
     "AskERP Business Profile": {
         "after_save": "askerp.business_context.clear_profile_cache",
     },
@@ -71,6 +77,18 @@ doc_events = {
         "on_submit": "askerp.query_cache.clear_cache_for_doctype",
         "on_cancel": "askerp.query_cache.clear_cache_for_doctype",
     },
+    # P3.2: Auto-trigger context discovery when schema changes
+    "Custom Field": {
+        "after_insert": "askerp.context_discovery.on_schema_change",
+        "after_delete": "askerp.context_discovery.on_schema_change",
+    },
+    "DocType": {
+        "after_save": "askerp.context_discovery.on_schema_change",
+    },
+    "Property Setter": {
+        "after_insert": "askerp.context_discovery.on_schema_change",
+        "after_delete": "askerp.context_discovery.on_schema_change",
+    },
 }
 
 # Scheduled Tasks — Alert engine + Proactive Intelligence (Sprint 7)
@@ -100,5 +118,8 @@ scheduler_events = {
     ],
     "weekly": [
         "askerp.alerts.check_weekly_alerts",
+    ],
+    "monthly": [
+        "askerp.context_discovery.scheduled_context_refresh",
     ],
 }

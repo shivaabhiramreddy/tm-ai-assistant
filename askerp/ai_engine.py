@@ -30,7 +30,17 @@ import frappe
 # No hardcoded model strings, API keys, or URLs remain in this file.
 
 # Fallback defaults used ONLY if AskERP Settings is not yet configured
-_FALLBACK_MAX_TOOL_ROUNDS = 8
+_FALLBACK_MAX_TOOL_ROUNDS = 8  # Used only if AskERP Settings not configured
+
+def _get_max_tool_rounds():
+    """Get max tool rounds from AskERP Settings, with fallback."""
+    from .providers import get_tuning_value
+    return get_tuning_value("max_tool_rounds", _FALLBACK_MAX_TOOL_ROUNDS)
+
+def _get_sql_row_limit():
+    """Get SQL query row limit from AskERP Settings, with fallback."""
+    from .providers import get_tuning_value
+    return get_tuning_value("sql_query_row_limit", 5000)
 _FALLBACK_TOKEN_BUDGETS = {
     "flash": 5_000,
     "simple": 15_000,
@@ -49,25 +59,15 @@ from askerp.classifier import classify_query  # noqa: F401 — re-exported for b
 # ─── Clarification Engine (Sprint 6B) ────────────────────────────────────────
 # Classifies queries as CLEAR, LIKELY_CLEAR, or AMBIGUOUS.
 # For ambiguous queries, returns clarification options as tappable chips.
+# Options are built dynamically from the available schema (no hardcoded doctypes).
 
-# Patterns that indicate the query is AMBIGUOUS (needs clarification)
-_AMBIGUOUS_PATTERNS = [
-    (r"^(show|get|give|tell)\s+(me\s+)?(something|stuff|things|info|data|details)\b",
-     "What specifically would you like to see?",
-     ["Today's sales summary", "Outstanding receivables", "Inventory status", "Business pulse"]),
-    (r"^(what|how)\s+(about|is)\s+(the\s+)?(business|company|status|situation)\b",
-     "Which aspect of the business?",
-     ["Revenue & sales today", "Cash flow & payments", "Inventory levels", "Full business dashboard"]),
-    (r"^report\b",
-     "What kind of report would you like?",
-     ["Sales report this month", "Financial summary", "Inventory valuation", "Receivables aging"]),
-    (r"^(compare|comparison)\b(?!.*\b(with|vs|to|and|between)\b)",
-     "Compare what with what?",
-     ["This month vs last month sales", "This quarter vs same quarter last year", "Territory-wise comparison"]),
-    (r"^(update|status)\b$",
-     "Status of what?",
-     ["Pending approvals", "Today's orders", "Dispatch status", "Payment collections"]),
-]
+from askerp.schema_utils import (  # noqa: E402
+    build_ambiguous_options,
+    build_sql_tool_description,
+    build_sql_tool_input_description,
+)
+
+_AMBIGUOUS_PATTERNS = build_ambiguous_options()
 
 _ambiguous_re = [(re.compile(p, re.IGNORECASE), q, opts) for p, q, opts in _AMBIGUOUS_PATTERNS]
 
@@ -117,39 +117,10 @@ def classify_and_clarify(question):
 # Caches execution plans for common query patterns.
 # If a query matches a cached pattern, skip the planning LLM call and reuse.
 
-_PLAN_CACHE = {
-    # Pattern → pre-built tool sequence (avoids an LLM round for common queries)
-    r"(business\s+)?pulse|dashboard|overview|briefing": {
-        "plan": "financial_summary",
-        "tools": ["get_financial_summary"],
-        "description": "Pre-cached: business pulse via financial summary tool",
-    },
-    r"(outstanding\s+)?receivables?\s*(aging)?": {
-        "plan": "receivables_query",
-        "tools": ["run_sql_query"],
-        "query_hint": "SELECT customer, outstanding_amount FROM `tabSales Invoice` WHERE outstanding_amount > 0 AND docstatus=1 ORDER BY outstanding_amount DESC LIMIT 20",
-    },
-    r"(pending\s+)?approvals?": {
-        "plan": "approvals_query",
-        "tools": ["query_records"],
-        "query_hint": "Check Sales Order, Sales Invoice, Purchase Receipt, Payment Proposal with workflow_state containing 'Pending'",
-    },
-    r"(today|yesterday)['s]*\s+sales(\s+summary)?": {
-        "plan": "daily_sales",
-        "tools": ["run_sql_query"],
-        "query_hint": "SELECT SUM(grand_total) as total, COUNT(*) as count FROM `tabSales Invoice` WHERE posting_date='{date}' AND docstatus=1",
-    },
-    r"(dso|days?\s+sales?\s+outstanding)": {
-        "plan": "dso_calculation",
-        "tools": ["get_financial_summary"],
-        "description": "DSO is included in the financial summary tool output",
-    },
-    r"(low\s+stock|reorder|stock\s+alert)": {
-        "plan": "low_stock",
-        "tools": ["run_sql_query"],
-        "query_hint": "SELECT item_code, item_name, actual_qty, reorder_level FROM `tabBin` WHERE actual_qty < reorder_level AND reorder_level > 0",
-    },
-}
+# Plan cache is built dynamically from schema — no hardcoded SQL table references.
+from askerp.schema_utils import build_plan_cache_hints  # noqa: E402
+
+_PLAN_CACHE = build_plan_cache_hints()
 
 _plan_cache_re = [(re.compile(p, re.IGNORECASE), v) for p, v in _PLAN_CACHE.items()]
 
@@ -351,25 +322,13 @@ ERPNEXT_TOOLS = [
     },
     {
         "name": "run_sql_query",
-        "description": (
-            "Execute a READ-ONLY SQL query against the ERPNext database. "
-            "Use this for complex analytics that need JOINs, subqueries, window functions, "
-            "or calculations that can't be done with simple filters. "
-            "ONLY SELECT statements are allowed. Table names use backtick-quoted "
-            "format like `tabSales Invoice`, `tabCustomer`, `tabItem`. "
-            "All tables are prefixed with 'tab'. Examples: "
-            "`tabSales Invoice` for Sales Invoice, `tabPayment Entry` for Payment Entry."
-        ),
+        "description": build_sql_tool_description(),
         "input_schema": {
             "type": "object",
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": (
-                        "SQL SELECT query. Table names use `tabDoctype` format. "
-                        "Example: SELECT customer_name, SUM(grand_total) as total "
-                        "FROM `tabSales Invoice` WHERE docstatus=1 GROUP BY customer_name"
-                    )
+                    "description": build_sql_tool_input_description(),
                 },
             },
             "required": ["query"],
@@ -388,7 +347,7 @@ ERPNEXT_TOOLS = [
             "properties": {
                 "company": {
                     "type": "string",
-                    "description": "Company name (e.g. 'Fertile Green Industries Private Limited')"
+                    "description": "Company name as it appears in ERPNext (e.g. 'My Company Ltd')"
                 },
                 "from_date": {"type": "string", "description": "Start date YYYY-MM-DD"},
                 "to_date": {"type": "string", "description": "End date YYYY-MM-DD"},
@@ -882,15 +841,16 @@ def _exec_sql_query(params):
             return {"error": f"Access to '{tbl}' is restricted for security reasons."}
 
     # Auto-append LIMIT if not present (prevent runaway queries)
+    row_limit = _get_sql_row_limit()
     if "LIMIT" not in query_upper:
-        query = query.rstrip(";") + " LIMIT 5000"
+        query = query.rstrip(";") + f" LIMIT {row_limit}"
 
     try:
         # Execute with a 30-second timeout to prevent expensive queries
         # Frappe's db.sql runs in the current transaction context
-        frappe.db.sql("SET SESSION MAX_EXECUTION_TIME = 30000")  # 30s in ms (MariaDB)
+        frappe.db.sql("SET SESSION max_statement_time = 30")  # 30s timeout (MariaDB syntax)
         result = frappe.db.sql(query, as_dict=True)
-        frappe.db.sql("SET SESSION MAX_EXECUTION_TIME = 0")  # Reset to default
+        frappe.db.sql("SET SESSION max_statement_time = 0")  # Reset to default
 
         # Return max 200 rows to the AI
         truncated = len(result) > 200
@@ -900,7 +860,7 @@ def _exec_sql_query(params):
         error_str = str(e)[:200]
         # Reset timeout on error too
         try:
-            frappe.db.sql("SET SESSION MAX_EXECUTION_TIME = 0")
+            frappe.db.sql("SET SESSION max_statement_time = 0")
         except Exception:
             pass
         return {"error": f"SQL error: {error_str}"}
@@ -910,7 +870,10 @@ def _exec_financial_summary(params):
     """
     Get a comprehensive financial summary for a company and period.
     Optimized: 8 sequential queries → 3 batched queries (SI + PI + PE combined).
+    All SQL is built dynamically from schema_utils — no hardcoded table names.
     """
+    from askerp.schema_utils import build_financial_summary_sql
+
     company = params["company"]
     today = frappe.utils.today()
     from_date = params.get("from_date", frappe.utils.get_first_day(today).strftime("%Y-%m-%d"))
@@ -918,70 +881,56 @@ def _exec_financial_summary(params):
 
     summary = {}
 
-    # BATCH 1: All Sales Invoice metrics in ONE query (revenue + returns + receivables)
-    si_data = frappe.db.sql("""
-        SELECT
-            COALESCE(SUM(CASE WHEN is_return=0 AND posting_date BETWEEN %s AND %s THEN grand_total ELSE 0 END), 0) as total_revenue,
-            COALESCE(SUM(CASE WHEN is_return=0 AND posting_date BETWEEN %s AND %s THEN net_total ELSE 0 END), 0) as net_revenue,
-            SUM(CASE WHEN is_return=0 AND posting_date BETWEEN %s AND %s THEN 1 ELSE 0 END) as invoice_count,
-            COALESCE(SUM(CASE WHEN is_return=1 AND posting_date BETWEEN %s AND %s THEN ABS(grand_total) ELSE 0 END), 0) as total_returns,
-            SUM(CASE WHEN is_return=1 AND posting_date BETWEEN %s AND %s THEN 1 ELSE 0 END) as return_count,
-            COALESCE(SUM(CASE WHEN outstanding_amount > 0 THEN outstanding_amount ELSE 0 END), 0) as total_receivable
-        FROM `tabSales Invoice`
-        WHERE company=%s AND docstatus=1
-    """, (from_date, to_date, from_date, to_date, from_date, to_date,
-          from_date, to_date, from_date, to_date, company), as_dict=True)
+    # Build all 3 SQL batches dynamically from schema
+    queries = build_financial_summary_sql(company, from_date, to_date)
 
-    si = si_data[0] if si_data else {}
-    summary["revenue"] = {
-        "total_revenue": si.get("total_revenue", 0),
-        "net_revenue": si.get("net_revenue", 0),
-        "invoice_count": si.get("invoice_count", 0),
-    }
-    summary["returns"] = {
-        "total_returns": si.get("total_returns", 0),
-        "return_count": si.get("return_count", 0),
-    }
-    summary["receivables"] = {"total_receivable": si.get("total_receivable", 0)}
+    # BATCH 1: Sales Invoice metrics (if available)
+    if "si" in queries:
+        si_data = frappe.db.sql(queries["si"]["sql"], queries["si"]["params"], as_dict=True)
+        si = si_data[0] if si_data else {}
+        summary["revenue"] = {
+            "total_revenue": si.get("total_revenue", 0),
+            "net_revenue": si.get("net_revenue", 0),
+            "invoice_count": si.get("invoice_count", 0),
+        }
+        summary["returns"] = {
+            "total_returns": si.get("total_returns", 0),
+            "return_count": si.get("return_count", 0),
+        }
+        summary["receivables"] = {"total_receivable": si.get("total_receivable", 0)}
+    else:
+        summary["revenue"] = {"total_revenue": 0, "net_revenue": 0, "invoice_count": 0}
+        summary["returns"] = {"total_returns": 0, "return_count": 0}
+        summary["receivables"] = {"total_receivable": 0}
 
-    # BATCH 2: All Purchase Invoice metrics in ONE query (purchases + payables)
-    pi_data = frappe.db.sql("""
-        SELECT
-            COALESCE(SUM(CASE WHEN is_return=0 AND posting_date BETWEEN %s AND %s THEN grand_total ELSE 0 END), 0) as total_purchases,
-            SUM(CASE WHEN is_return=0 AND posting_date BETWEEN %s AND %s THEN 1 ELSE 0 END) as purchase_count,
-            COALESCE(SUM(CASE WHEN outstanding_amount > 0 THEN outstanding_amount ELSE 0 END), 0) as total_payable
-        FROM `tabPurchase Invoice`
-        WHERE company=%s AND docstatus=1
-    """, (from_date, to_date, from_date, to_date, company), as_dict=True)
+    # BATCH 2: Purchase Invoice metrics (if available)
+    if "pi" in queries:
+        pi_data = frappe.db.sql(queries["pi"]["sql"], queries["pi"]["params"], as_dict=True)
+        pi = pi_data[0] if pi_data else {}
+        summary["purchases"] = {
+            "total_purchases": pi.get("total_purchases", 0),
+            "purchase_count": pi.get("purchase_count", 0),
+        }
+        summary["payables"] = {"total_payable": pi.get("total_payable", 0)}
+    else:
+        summary["purchases"] = {"total_purchases": 0, "purchase_count": 0}
+        summary["payables"] = {"total_payable": 0}
 
-    pi = pi_data[0] if pi_data else {}
-    summary["purchases"] = {
-        "total_purchases": pi.get("total_purchases", 0),
-        "purchase_count": pi.get("purchase_count", 0),
-    }
-    summary["payables"] = {"total_payable": pi.get("total_payable", 0)}
-
-    # BATCH 3: All Payment Entry metrics in ONE query (collections + payments made)
-    pe_data = frappe.db.sql("""
-        SELECT
-            COALESCE(SUM(CASE WHEN payment_type='Receive' THEN paid_amount ELSE 0 END), 0) as total_collections,
-            SUM(CASE WHEN payment_type='Receive' THEN 1 ELSE 0 END) as collection_count,
-            COALESCE(SUM(CASE WHEN payment_type='Pay' THEN paid_amount ELSE 0 END), 0) as total_payments,
-            SUM(CASE WHEN payment_type='Pay' THEN 1 ELSE 0 END) as payment_count
-        FROM `tabPayment Entry`
-        WHERE company=%s AND docstatus=1
-        AND posting_date BETWEEN %s AND %s
-    """, (company, from_date, to_date), as_dict=True)
-
-    pe = pe_data[0] if pe_data else {}
-    summary["collections"] = {
-        "total_collections": pe.get("total_collections", 0),
-        "collection_count": pe.get("collection_count", 0),
-    }
-    summary["payments_made"] = {
-        "total_payments": pe.get("total_payments", 0),
-        "payment_count": pe.get("payment_count", 0),
-    }
+    # BATCH 3: Payment Entry metrics (if available)
+    if "pe" in queries:
+        pe_data = frappe.db.sql(queries["pe"]["sql"], queries["pe"]["params"], as_dict=True)
+        pe = pe_data[0] if pe_data else {}
+        summary["collections"] = {
+            "total_collections": pe.get("total_collections", 0),
+            "collection_count": pe.get("collection_count", 0),
+        }
+        summary["payments_made"] = {
+            "total_payments": pe.get("total_payments", 0),
+            "payment_count": pe.get("payment_count", 0),
+        }
+    else:
+        summary["collections"] = {"total_collections": 0, "collection_count": 0}
+        summary["payments_made"] = {"total_payments": 0, "payment_count": 0}
 
     # Derived metrics
     total_rev = float(summary["revenue"].get("total_revenue", 0))
@@ -1215,31 +1164,65 @@ def _exec_generate_chart(params):
 
 
 def _parse_filters(filters):
+    """
+    Parse filters from AI tool input into a format Frappe's get_list accepts.
+    Handles multiple input formats defensively:
+      - dict: {"customer": "ABC"} → {"customer": "ABC"}
+      - list of lists: [["status", "=", "Active"]] → passed as-is to Frappe
+      - string: '{"customer": "ABC"}' → parsed as JSON then processed
+      - None/empty: → {}
+    """
     if not filters:
         return {}
-    parsed = {}
-    for key, value in filters.items():
-        parsed[key] = value
-    return parsed
+
+    # If filters is a string, try to parse as JSON first
+    if isinstance(filters, str):
+        try:
+            import json as _json
+            filters = _json.loads(filters)
+        except (ValueError, TypeError):
+            # Not valid JSON — try to extract key=value from simple string
+            # e.g., "customer=ABC" or just ignore
+            frappe.log_error(
+                title="AskERP: Unparseable filter string",
+                message=f"Could not parse filters: {filters[:200]}"
+            )
+            return {}
+
+    # If it's a list (Frappe filter format: [["field", "op", "value"], ...])
+    if isinstance(filters, list):
+        return filters  # Frappe's get_list natively handles list-of-lists
+
+    # If it's a dict, validate and return
+    if isinstance(filters, dict):
+        parsed = {}
+        for key, value in filters.items():
+            parsed[key] = value
+        return parsed
+
+    # Unknown type — log and return empty
+    frappe.log_error(
+        title="AskERP: Unexpected filter type",
+        message=f"Filter type: {type(filters).__name__}, value: {str(filters)[:200]}"
+    )
+    return {}
 
 
 # ─── Write Action Executors (Sprint 8) ──────────────────────────────────────
 
-# Doctypes that can be created as drafts via the AI
-_DRAFT_ALLOWED_DOCTYPES = {
-    "Sales Order", "Sales Invoice", "Purchase Order",
-    "Payment Entry", "Stock Entry", "Journal Entry",
-}
+# Doctypes that can be created as drafts via the AI — resolved dynamically
+# from AskERP Settings (configurable) or verified defaults from schema_utils.
+from askerp.schema_utils import resolve_draft_allowed_doctypes, resolve_mandatory_fields  # noqa: E402
 
-# Mandatory fields per doctype that must be present in values
-_DRAFT_MANDATORY = {
-    "Sales Order": ["customer", "company", "delivery_date"],
-    "Sales Invoice": ["customer", "company"],
-    "Purchase Order": ["supplier", "company"],
-    "Payment Entry": ["payment_type", "party_type", "party", "company", "paid_amount"],
-    "Stock Entry": ["stock_entry_type", "company"],
-    "Journal Entry": ["company"],
-}
+
+def _get_draft_allowed():
+    """Get allowed draft doctypes (cached in schema_utils)."""
+    return resolve_draft_allowed_doctypes()
+
+
+def _get_draft_mandatory(doctype):
+    """Get mandatory fields for a doctype from live ERPNext metadata."""
+    return resolve_mandatory_fields(doctype)
 
 
 def _exec_create_draft(params, user):
@@ -1250,12 +1233,13 @@ def _exec_create_draft(params, user):
     doctype = params.get("doctype")
     values = params.get("values", {})
 
-    if doctype not in _DRAFT_ALLOWED_DOCTYPES:
-        return {"error": f"Cannot create drafts for '{doctype}'. Allowed: {', '.join(sorted(_DRAFT_ALLOWED_DOCTYPES))}"}
+    allowed = _get_draft_allowed()
+    if doctype not in allowed:
+        return {"error": f"Cannot create drafts for '{doctype}'. Allowed: {', '.join(sorted(allowed))}"}
 
-    # Check mandatory fields
+    # Check mandatory fields from live ERPNext metadata
     missing = []
-    for field in _DRAFT_MANDATORY.get(doctype, []):
+    for field in _get_draft_mandatory(doctype):
         if field not in values or not values[field]:
             missing.append(field)
     if missing:
@@ -1660,8 +1644,9 @@ def process_chat(user, question, conversation_history=None, image_data=None):
         tier_used = "vision"
     else:
         # Smart routing: classify query → tier → model
+        # Pass conversation_history so follow-ups don't get routed to flash tier
         if settings and settings.enable_smart_routing:
-            _complexity, tier_name = classify_query(question)
+            _complexity, tier_name = classify_query(question, conversation_history)
             tier_used = tier_name
             model_doc = get_model_for_tier(tier_name)
             # If requested tier not configured, escalate to next tier
@@ -1764,7 +1749,7 @@ def process_chat(user, question, conversation_history=None, image_data=None):
     token_budget = _get_token_budget(question, model_doc)
     budget_exceeded = False
 
-    max_rounds = model_doc.max_tool_rounds if (model_doc.max_tool_rounds and model_doc.max_tool_rounds > 0) else _FALLBACK_MAX_TOOL_ROUNDS
+    max_rounds = model_doc.max_tool_rounds if (model_doc.max_tool_rounds and model_doc.max_tool_rounds > 0) else _get_max_tool_rounds()
 
     # Flash tier: skip tools entirely (saves ~2K input tokens per call)
     if tier_used == "tier_1":
@@ -2174,7 +2159,7 @@ def process_chat_stream(user, question, conversation_history=None, stream_id=Non
             tier_used = "vision"
         else:
             if settings and settings.enable_smart_routing:
-                _complexity, tier_name = classify_query(question)
+                _complexity, tier_name = classify_query(question, conversation_history)
                 tier_used = tier_name
                 model_doc = get_model_for_tier(tier_name)
                 if not model_doc and tier_name == "tier_1":
@@ -2256,7 +2241,7 @@ def process_chat_stream(user, question, conversation_history=None, stream_id=Non
         token_budget = _get_token_budget(question, model_doc)
         budget_exceeded = False
 
-        max_rounds = model_doc.max_tool_rounds if (model_doc.max_tool_rounds and model_doc.max_tool_rounds > 0) else _FALLBACK_MAX_TOOL_ROUNDS
+        max_rounds = model_doc.max_tool_rounds if (model_doc.max_tool_rounds and model_doc.max_tool_rounds > 0) else _get_max_tool_rounds()
 
         if tier_used == "tier_1":
             tools = None

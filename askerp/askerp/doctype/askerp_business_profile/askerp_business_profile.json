@@ -73,7 +73,14 @@
     "custom_doctypes_info",
 
     "section_industry_benchmarks",
-    "industry_benchmarks"
+    "industry_benchmarks",
+
+    "section_approval_workflows",
+    "approval_workflows",
+
+    "section_discovered_schema",
+    "discovered_data_model",
+    "last_schema_discovery"
   ],
   "fields": [
     {
@@ -438,6 +445,40 @@
       "fieldtype": "Text",
       "label": "Industry Benchmarks",
       "description": "What are typical performance numbers in your industry? This helps the AI evaluate your metrics.\n\nExample:\n- Typical gross margin: 20-30%\n- Typical DSO: 30-45 days\n- Revenue growth: 10-15% YoY for mid-size\n- Working capital cycle: 45-75 days is normal"
+    },
+    {
+      "fieldname": "section_approval_workflows",
+      "fieldtype": "Section Break",
+      "label": "Approval Workflows",
+      "collapsible": 1,
+      "description": "Auto-generated summary of active approval workflows and chains. Helps the AI understand your business approval processes."
+    },
+    {
+      "fieldname": "approval_workflows",
+      "fieldtype": "Text",
+      "label": "Approval Workflows",
+      "description": "Auto-generated: Describes each active workflow — which documents require approval, who approves, and what states exist. Refreshed by Context Discovery."
+    },
+
+    {
+      "fieldname": "section_discovered_schema",
+      "fieldtype": "Section Break",
+      "label": "Auto-Discovered Database Schema",
+      "collapsible": 1,
+      "description": "Auto-generated from your database. Refreshed monthly. This teaches the AI your exact database structure — doctypes, fields, relationships, and SQL patterns. Do NOT delete this — it is additive to your manual settings above."
+    },
+    {
+      "fieldname": "discovered_data_model",
+      "fieldtype": "Long Text",
+      "label": "Discovered Data Model",
+      "description": "Auto-generated: Complete database schema reference for the AI. Includes all doctypes with their fields, child tables, record counts, and example SQL patterns. Auto-refreshed monthly by the discovery engine. You can add notes here — the engine will preserve your additions."
+    },
+    {
+      "fieldname": "last_schema_discovery",
+      "fieldtype": "Datetime",
+      "label": "Last Schema Discovery",
+      "read_only": 1,
+      "description": "When the database schema was last scanned and this section was updated."
     }
   ],
   "permissions": [

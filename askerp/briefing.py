@@ -15,10 +15,18 @@ Delivered via:
 1. Frappe Notification Log (bell icon in ERPNext)
 2. Email notification
 3. Logged to AI Usage Log for chat UI to show
+
+
+v2.1 changes (Decoupling):
+- Removed hardcoded Indian number formatting — uses formatting.py
+- Removed hardcoded role sets — uses formatting.get_role_sets()
+- Removed hardcoded "TM" branding — uses profile trading_name
 """
 
 import json
 import frappe
+from askerp.formatting import format_currency, get_trading_name, get_role_sets
+from askerp.schema_utils import build_briefing_queries, build_pending_approval_counts
 
 
 def generate_morning_briefing():
@@ -60,9 +68,9 @@ def _get_briefing_users():
     Bootstrap-safe: checks if allow_ai_chat field exists before querying.
     On fresh install, the field may not exist yet (created by after_install hook).
     """
-    # Users with AI access AND management+ roles
-    management_roles = {"System Manager", "Accounts Manager", "Sales Manager",
-                        "Purchase Manager", "Stock Manager", "Manufacturing Manager"}
+    # Users with AI access AND management+ roles (from AskERP Settings)
+    role_sets = get_role_sets()
+    management_roles = role_sets["executive"] | role_sets["management"]
 
     # Bootstrap protection: skip if custom field doesn't exist yet
     if not frappe.db.has_column("User", "allow_ai_chat"):
@@ -97,73 +105,52 @@ def _build_briefing(user):
 
     sections = []
 
-    # 1. Yesterday's Sales
-    try:
-        sales_data = frappe.db.sql("""
-            SELECT
-                COUNT(*) as invoice_count,
-                COALESCE(SUM(grand_total), 0) as total_revenue,
-                COALESCE(SUM(outstanding_amount), 0) as new_outstanding
-            FROM `tabSales Invoice`
-            WHERE posting_date = %s AND docstatus = 1
-        """, yesterday, as_dict=True)[0]
+    # ─── Dynamic SQL from schema_utils (no hardcoded doctypes) ───────────
+    briefing_sql = build_briefing_queries()
 
-        revenue = _format_inr(sales_data.total_revenue)
-        sections.append(
-            f"**Yesterday's Sales:** {sales_data.invoice_count} invoices totaling {revenue}"
-        )
-    except Exception:
-        pass
+    # 1. Yesterday's Sales
+    if "yesterday_sales" in briefing_sql:
+        try:
+            sales_data = frappe.db.sql(
+                briefing_sql["yesterday_sales"], yesterday, as_dict=True
+            )[0]
+            revenue = format_currency(sales_data.total_revenue)
+            sections.append(
+                f"**Yesterday's Sales:** {sales_data.invoice_count} invoices totaling {revenue}"
+            )
+        except Exception:
+            pass
 
     # 2. Collections Yesterday
-    try:
-        collections = frappe.db.sql("""
-            SELECT
-                COUNT(*) as payment_count,
-                COALESCE(SUM(paid_amount), 0) as total_collected
-            FROM `tabPayment Entry`
-            WHERE posting_date = %s AND docstatus = 1
-            AND payment_type = 'Receive'
-        """, yesterday, as_dict=True)[0]
-
-        collected = _format_inr(collections.total_collected)
-        sections.append(
-            f"**Collections:** {collections.payment_count} payments, {collected} received"
-        )
-    except Exception:
-        pass
+    if "collections" in briefing_sql:
+        try:
+            collections = frappe.db.sql(
+                briefing_sql["collections"], yesterday, as_dict=True
+            )[0]
+            collected = format_currency(collections.total_collected)
+            sections.append(
+                f"**Collections:** {collections.payment_count} payments, {collected} received"
+            )
+        except Exception:
+            pass
 
     # 3. Outstanding Receivables
+    if "receivables" in briefing_sql:
+        try:
+            receivables = frappe.db.sql(
+                briefing_sql["receivables"], as_dict=True
+            )[0]
+            outstanding = format_currency(receivables.total)
+            sections.append(f"**Total Outstanding Receivables:** {outstanding}")
+        except Exception:
+            pass
+
+    # 4. Pending Approvals (dynamic workflow state discovery)
     try:
-        receivables = frappe.db.sql("""
-            SELECT COALESCE(SUM(outstanding_amount), 0) as total
-            FROM `tabSales Invoice`
-            WHERE outstanding_amount > 0 AND docstatus = 1
-        """, as_dict=True)[0]
-
-        outstanding = _format_inr(receivables.total)
-        sections.append(f"**Total Outstanding Receivables:** {outstanding}")
-    except Exception:
-        pass
-
-    # 4. Pending Approvals
-    try:
-        pending_so = frappe.db.count("Sales Order", {
-            "workflow_state": "Pending for Approval", "docstatus": 0
-        })
-        pending_si = frappe.db.count("Sales Invoice", {
-            "workflow_state": "Pending for Approval", "docstatus": 0
-        })
-        pending_pr = frappe.db.count("Purchase Receipt", {
-            "workflow_state": "Pending for Approval", "docstatus": 0
-        })
-        total_pending = pending_so + pending_si + pending_pr
-
+        approval_counts = build_pending_approval_counts()
+        total_pending = sum(count for _, count in approval_counts)
         if total_pending > 0:
-            parts = []
-            if pending_so: parts.append(f"{pending_so} Sales Orders")
-            if pending_si: parts.append(f"{pending_si} Sales Invoices")
-            if pending_pr: parts.append(f"{pending_pr} Purchase Receipts")
+            parts = [f"{count} {label}" for label, count in approval_counts]
             sections.append(f"**Pending Approvals:** {total_pending} ({', '.join(parts)})")
     except Exception:
         pass
@@ -246,7 +233,7 @@ def _deliver_briefing(user, briefing_text):
             html_content = briefing_text.replace("\n", "<br>").replace("**", "<strong>").replace("*", "<em>")
             frappe.sendmail(
                 recipients=[user_email],
-                subject=f"TM Morning Briefing — {frappe.utils.now_datetime().strftime('%B %d, %Y')}",
+                subject=f"{get_trading_name()} Morning Briefing — {frappe.utils.now_datetime().strftime('%B %d, %Y')}",
                 message=(
                     f"<div style='font-family: Arial, sans-serif; max-width: 600px;'>"
                     f"{html_content}"
@@ -258,16 +245,3 @@ def _deliver_briefing(user, briefing_text):
             )
     except Exception as e:
         frappe.log_error(title="Briefing Email Error", message=str(e))
-
-
-def _format_inr(value):
-    """Format number in Indian notation."""
-    value = float(value or 0)
-    if abs(value) >= 1_00_00_000:
-        return f"₹{value / 1_00_00_000:.2f} Cr"
-    elif abs(value) >= 1_00_000:
-        return f"₹{value / 1_00_000:.2f} L"
-    elif abs(value) >= 1000:
-        return f"₹{value:,.0f}"
-    else:
-        return f"₹{value:.2f}"

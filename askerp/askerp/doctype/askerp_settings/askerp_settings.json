@@ -32,6 +32,11 @@
     "enable_priority_queue",
     "column_break_queue",
     "executive_priority_roles", "manager_priority_roles",
+    "section_advanced_tuning",
+    "max_tool_rounds", "max_context_messages",
+    "column_break_advanced",
+    "max_stored_messages", "sql_query_row_limit", "api_timeout_seconds",
+    "custom_classification_patterns",
     "section_demo",
     "demo_mode",
     "section_setup_status",
@@ -253,6 +258,59 @@
       "label": "Manager Roles (Priority 2)",
       "default": "Sales Manager,Purchase Manager,Stock Manager,Manufacturing Manager",
       "description": "Comma-separated role names. These users get next-available processing."
+    },
+    {
+      "fieldname": "section_advanced_tuning",
+      "fieldtype": "Section Break",
+      "label": "Advanced Tuning",
+      "collapsible": 1,
+      "description": "Fine-tune AI engine behaviour. Change only if you understand the cost implications."
+    },
+    {
+      "fieldname": "max_tool_rounds",
+      "fieldtype": "Int",
+      "label": "Max Tool Rounds",
+      "default": "8",
+      "description": "Maximum iterations the AI can use tools per query. Higher = more thorough but costlier. Range: 2-15."
+    },
+    {
+      "fieldname": "max_context_messages",
+      "fieldtype": "Int",
+      "label": "Max Context Messages",
+      "default": "20",
+      "description": "How many recent messages to send to the AI for conversation context. Higher = better memory but costlier."
+    },
+    {
+      "fieldname": "column_break_advanced",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "max_stored_messages",
+      "fieldtype": "Int",
+      "label": "Max Stored Messages",
+      "default": "100",
+      "description": "Pruning threshold: older messages are removed when a session exceeds this count."
+    },
+    {
+      "fieldname": "sql_query_row_limit",
+      "fieldtype": "Int",
+      "label": "SQL Query Row Limit",
+      "default": "5000",
+      "description": "Maximum rows the AI can fetch in a single SQL query. Safety limit to prevent expensive queries."
+    },
+    {
+      "fieldname": "api_timeout_seconds",
+      "fieldtype": "Int",
+      "label": "API Timeout (seconds)",
+      "default": "180",
+      "description": "Maximum seconds to wait for an AI provider response. Increase for complex queries on slow networks."
+    },
+    {
+      "fieldname": "custom_classification_patterns",
+      "fieldtype": "Code",
+      "label": "Custom Classification Patterns",
+      "options": "JSON",
+      "description": "JSON object with extra regex patterns for query classification. Format: {\"flash\": [\"pattern1\"], \"simple\": [\"pattern2\"], \"complex\": [\"pattern3\"]}. Merged with built-in patterns. Leave empty to use defaults only."
     },
     {
       "fieldname": "section_demo",

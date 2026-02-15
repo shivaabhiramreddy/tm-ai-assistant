@@ -16,11 +16,15 @@ Each alert rule specifies:
 v2.0 changes:
 - Added System Notification on trigger (shows in Frappe bell icon)
 - Added email notification via frappe.sendmail
-- Indian number formatting for threshold values
+
+v2.1 changes (Decoupling):
+- Removed hardcoded Indian number formatting — uses formatting.py
+- Removed hardcoded "TM" branding — uses profile trading_name
 """
 
 import json
 import frappe
+from askerp.formatting import format_currency, get_trading_name
 
 
 def check_alerts(frequency):
@@ -142,19 +146,6 @@ def _check_condition(value, operator, threshold):
     return check_fn(value, threshold)
 
 
-def _format_indian_number(value):
-    """Format a number in Indian notation (lakhs/crores) for alert messages."""
-    value = float(value)
-    if abs(value) >= 1_00_00_000:
-        return f"₹{value / 1_00_00_000:.2f} Cr"
-    elif abs(value) >= 1_00_000:
-        return f"₹{value / 1_00_000:.2f} L"
-    elif abs(value) >= 1000:
-        return f"₹{value:,.0f}"
-    else:
-        return f"₹{value:.2f}"
-
-
 def _log_trigger(alert, current_value, threshold_value):
     """
     Log an alert trigger AND notify the user via:
@@ -162,8 +153,8 @@ def _log_trigger(alert, current_value, threshold_value):
     2. Frappe System Notification (bell icon in ERPNext)
     3. Email notification
     """
-    formatted_value = _format_indian_number(current_value)
-    formatted_threshold = _format_indian_number(threshold_value)
+    formatted_value = format_currency(current_value)
+    formatted_threshold = format_currency(threshold_value)
     alert_msg = f"{alert.alert_name}: current value is {formatted_value} ({alert.threshold_operator} {formatted_threshold} threshold)"
 
     # 1. Log to AI Usage Log
@@ -189,7 +180,7 @@ def _log_trigger(alert, current_value, threshold_value):
             "for_user": alert.user,
             "from_user": "Administrator",
             "type": "Alert",
-            "subject": f"🚨 TM Alert: {alert.alert_name}",
+            "subject": f"🚨 {get_trading_name()} Alert: {alert.alert_name}",
             "email_content": (
                 f"<p><strong>{alert.alert_name}</strong></p>"
                 f"<p>{alert.description or ''}</p>"
@@ -211,7 +202,7 @@ def _log_trigger(alert, current_value, threshold_value):
         if user_email:
             frappe.sendmail(
                 recipients=[user_email],
-                subject=f"TM Alert: {alert.alert_name}",
+                subject=f"{get_trading_name()} Alert: {alert.alert_name}",
                 message=(
                     f"<h3>🚨 {alert.alert_name}</h3>"
                     f"<p>{alert.description or ''}</p>"
@@ -281,8 +272,8 @@ def test_alert(alert_name):
     else:
         current_value = float(result[0].get("value") or 0)
 
-    formatted_value = _format_indian_number(current_value)
-    formatted_threshold = _format_indian_number(threshold_val)
+    formatted_value = format_currency(current_value)
+    formatted_threshold = format_currency(threshold_val)
     would_trigger = _check_condition(current_value, threshold_op, threshold_val)
 
     # Update last_checked and last_value

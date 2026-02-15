@@ -6,6 +6,8 @@
     "engine": "InnoDB",
     "field_order": [
         "user", "session_id", "question", "model",
+        "section_response",
+        "response",
         "section_tokens",
         "input_tokens", "output_tokens", "total_tokens", "tool_calls",
         "column_break_tokens",
@@ -41,6 +43,18 @@
             "fieldtype": "Data",
             "label": "Model",
             "in_list_view": 1
+        },
+        {
+            "fieldname": "section_response",
+            "fieldtype": "Section Break",
+            "label": "AI Response",
+            "collapsible": 1
+        },
+        {
+            "fieldname": "response",
+            "fieldtype": "Long Text",
+            "label": "Response",
+            "description": "The AI assistant's full response text (for debugging and audit)"
         },
         {
             "fieldname": "section_tokens",

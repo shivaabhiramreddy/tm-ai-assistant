@@ -3,7 +3,7 @@ AskERP — Business Context v5.0 (Configurable via AskERP Business Profile)
 ===================================================================================
 
 v5.0 Migration from Hardcoded to Configurable (Phase 5.2):
-- All FGIPL-specific company data moves to "AskERP Business Profile" singleton doctype
+- All company-specific data moves to "AskERP Business Profile" singleton doctype
 - Maintains same public API: get_system_prompt(user) returns a string
 - Keeps 3-tier system: field (~200), management (~650), executive (~800 lines)
 - Keeps universal frameworks: CFO, CTO, CEO intelligence (industry-agnostic)
@@ -17,54 +17,74 @@ Key Changes from v4:
 2. _build_company_identity(profile) generates company section from profile
 3. _build_number_format_rules(profile) creates currency/formatting rules
 4. _build_personality(profile) generates AI voice from profile
-5. All FGIPL hardcoded strings replaced with profile.field_name references
+5. All hardcoded company strings replaced with profile.field_name references
 6. Custom doctypes and industry benchmarks dynamically injected
 7. Financial year start date now configurable
+
+v5.1 Changes (Phase 1 Decoupling):
+- Removed hardcoded _EXECUTIVE_ROLES, _MANAGEMENT_ROLES, _FIELD_ROLES constants
+- _get_prompt_tier() now delegates to formatting.get_prompt_tier() which reads from AskERP Settings
+- Role sets are admin-configurable via executive_priority_roles / manager_priority_roles
+
+v5.2 Changes (Phase 2 Decoupling):
+- _build_number_format_rules() now delegates to formatting.get_number_format_prompt()
+  → Removed 47 lines of inline formatting rules and hardcoded 'currency == "INR"' fallback
+- Time intelligence in get_system_prompt() now delegates to formatting.get_time_context()
+  → Removed 110 lines of inline FY/quarter/month/SMLY calculations
+- Time variables in get_template_variables() now delegates to formatting.get_time_context()
+  → Removed 65 lines of duplicate FY/quarter/month/SMLY calculations
+- Removed `from datetime import timedelta` import (no longer needed)
+- All time logic is now centralized in formatting.py — single source of truth
+
+v5.3 Changes (Phase 3 — Dynamic Schema Discovery):
+- Replaced hardcoded ERPNEXT DATA MODEL section (~180 lines of doctypes, fields, reports, SQL)
+  with _build_data_model_section(profile) that reads from discovered_data_model field
+- context_discovery.py now scans live database schema (frappe.get_meta) and generates
+  the data model text automatically — doctypes, fields, child tables, reports, SQL patterns
+- discovered_data_model is stored in AskERP Business Profile and refreshed monthly
+- Fallback: if discovered_data_model is empty (pre-discovery), provides minimal ERPNext
+  reference with basic doctypes so the AI can still function
+- Removed ~180 lines of hardcoded Sales/Purchase/Inventory/Finance/Masters doctypes
+- Removed ~50 lines of hardcoded SQL query patterns (now generated from actual fields)
+- Removed ~10 lines of hardcoded best practices (now included in generated data model)
+- Removed dead code: _build_si_pos_fields(), _build_pos_section(), _has_pos_profiles()
+  (POS detection is now automatic via _scan_active_doctypes in context_discovery)
 
 Backward Compatibility:
 - If profile doesn't exist or field is empty, sensible defaults are used
 - All universal frameworks (CFO/CTO/CEO, query patterns, safety rules) unchanged
-- Role classification (_EXECUTIVE_ROLES, _MANAGEMENT_ROLES, _FIELD_ROLES) unchanged
-- Time intelligence logic unchanged (still India FY: Apr-Mar)
 """
 
 import frappe
-from datetime import timedelta
 from typing import Dict, Optional, Any
+from askerp.formatting import (
+    get_role_sets,
+    get_prompt_tier as _formatting_get_prompt_tier,
+    get_number_format_prompt,
+    get_time_context,
+)
+from askerp.schema_utils import (
+    build_key_doctypes_text,
+    build_fallback_schema_text,
+    build_error_recovery_text,
+    build_financial_metrics_text,
+)
 
 
-# ─── Role-Based Tier Classification (unchanged from v4) ─────────────────────
+# ─── Role-Based Tier Classification (v5.1 — reads from AskERP Settings) ─────
 
-# Roles that map to each prompt tier
-_EXECUTIVE_ROLES = {"System Manager", "Administrator"}
-_MANAGEMENT_ROLES = {
-    "Accounts Manager", "Sales Manager", "Purchase Manager",
-    "Stock Manager", "Manufacturing Manager", "HR Manager",
-    "Quality Manager", "Projects Manager",
-}
-_FIELD_ROLES = {
-    "Sales User", "Stock User", "Purchase User",
-    "Manufacturing User", "Accounts User",
-}
+def _get_role_sets_cached():
+    """Get role sets from AskERP Settings (cached in formatting.py)."""
+    return get_role_sets()
 
 
 def _get_prompt_tier(user_roles):
     """
     Determine the prompt tier for a user based on their ERPNext roles.
+    Reads executive/management role sets from AskERP Settings.
     Returns: 'executive', 'management', or 'field'
     """
-    role_set = set(user_roles)
-
-    # Executive: System Manager or Administrator
-    if role_set & _EXECUTIVE_ROLES:
-        return "executive"
-
-    # Management: any *Manager role
-    if role_set & _MANAGEMENT_ROLES:
-        return "management"
-
-    # Field: basic users
-    return "field"
+    return _formatting_get_prompt_tier(set(user_roles))
 
 
 def clear_profile_cache(doc=None, method=None):
@@ -220,48 +240,16 @@ The organization operates as multiple companies:
 def _build_number_format_rules(profile: Dict[str, Any]) -> str:
     """
     Build currency and number formatting rules based on profile.
-    Supports both Indian (₹, Lakhs, Crores) and Western formats.
+    Delegates to formatting.get_number_format_prompt() — the central engine.
+
+    Phase 2 Change: Removed 47 lines of inline formatting rules.
+    Removed hardcoded 'currency == "INR"' fallback that forced Indian format.
+    Now purely profile-driven — whatever the admin configures is what gets used.
     """
-    number_format = profile.get("number_format", "Indian (₹, Lakhs, Crores)")
-    currency = profile.get("currency", "INR")
-
-    if "Indian" in number_format or currency == "INR":
-        return """━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-## 💱 CURRENCY & NUMBER FORMATTING — MANDATORY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-**ALL numbers MUST use Indian format. NEVER use Western notation.**
-
-### Absolute Rules
-1. **₹ symbol** for all currency
-2. **Indian comma grouping:** last 3 digits, then groups of 2
-   - ✅ ₹12,34,567 | ❌ ₹1,234,567
-   - ✅ ₹1,23,45,678 | ❌ ₹12,345,678
-3. **Lakhs (L) and Crores (Cr)** for large numbers:
-   - ₹1 Lakh = ₹1,00,000
-   - ₹1 Crore = ₹1,00,00,000
-   - ₹45.23 L ✅ | ₹4.52M ❌
-   - ₹2.15 Cr ✅ | ₹21.5M ❌
-4. **NEVER use Million, Billion, K, M, B** — always Lakhs and Crores
-5. **Smart rounding:**
-   - < ₹1 L → show full: ₹45,230
-   - ₹1 L to ₹99 L → ₹X.XX L (2 decimals)
-   - ₹1 Cr+ → ₹X.XX Cr
-   - For tables with many numbers: use consistent unit (all in L or all in Cr)
-6. **Weights:** Kg, Quintals (1 Quintal = 100 Kg), Tonnes (1 Tonne = 1,000 Kg)
-7. **Percentages:** Always show 1-2 decimal places: 23.5%, 12.05%"""
-    else:
-        # Default Western format
-        return f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-## 💱 CURRENCY & NUMBER FORMATTING — MANDATORY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-### Formatting Rules
-1. **Currency symbol:** {currency} for all currency
-2. **Standard comma grouping:** thousands separator every 3 digits
-3. **For large numbers:** use K (thousands), M (millions), B (billions) as appropriate
-4. **Smart rounding:** round to appropriate precision for the context
-5. **Percentages:** Always show 1-2 decimal places: 23.5%, 12.05%"""
+    rules = get_number_format_prompt(profile)
+    return f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{rules}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"""
 
 
 def _build_personality(profile: Dict[str, Any]) -> str:
@@ -343,6 +331,57 @@ def _build_industry_benchmarks_section(profile: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _build_approval_workflows_section(profile: Dict[str, Any]) -> str:
+    """
+    Build approval workflows quick-reference for executive/management prompts.
+
+    Phase P2.1: This reads the AI-generated summary from the approval_workflows
+    field on the Business Profile, populated by context_discovery.py.
+
+    Complements the detailed workflow transition data already present in
+    discovered_data_model (DATABASE SCHEMA section). This section provides a
+    concise, business-oriented summary of approval chains.
+    """
+    workflows_text = (profile.get("approval_workflows") or "").strip()
+
+    if not workflows_text:
+        return ""
+
+    return f"""
+
+### Approval Workflows (Quick Reference)
+{workflows_text}
+
+**Tip:** When users ask about pending approvals, use `run_sql_query` to check
+the workflow_state field on the relevant doctype. The schema section above has
+the exact state names and transitions for each workflow."""
+
+
+def _build_data_model_section(profile: Dict[str, Any]) -> str:
+    """
+    Build the data model reference section for the system prompt.
+
+    Phase 3 Change: Reads from discovered_data_model field (auto-generated
+    by context_discovery.py) instead of hardcoded doctypes/fields/SQL.
+
+    Priority:
+    1. If discovered_data_model has content → use it (includes doctypes, fields,
+       reports, SQL patterns, best practices — all from live database scan)
+    2. If empty (before first discovery run) → return minimal fallback that
+       teaches the AI basic ERPNext conventions so it can still function
+
+    The discovered_data_model is refreshed monthly by scheduled_context_refresh().
+    """
+    discovered = (profile.get("discovered_data_model") or "").strip()
+
+    if discovered:
+        return discovered
+
+    # ─── Fallback: minimal ERPNext reference for pre-discovery state ─────
+    # Dynamically generated from live metadata via schema_utils
+    return build_fallback_schema_text()
+
+
 def get_system_prompt(user):
     """
     Build the role-appropriate system prompt for the given user.
@@ -388,112 +427,34 @@ def get_system_prompt(user):
         # Template rendering failed — fall back to hardcoded prompt
         frappe.logger().warning(f"Template rendering failed for tier {template_tier}: {str(e)}")
 
-    # ─── Time Intelligence ───────────────────────────────────────────────
-    # CRITICAL: Use frappe.utils.now_datetime() — respects ERPNext's configured
-    # timezone (Asia/Kolkata). Never use datetime.now() which uses server's
-    # system timezone and can cause wrong FY/month/date calculations.
-    today = frappe.utils.today()
-    now = frappe.utils.now_datetime()
-    current_month = now.strftime("%B %Y")
-    current_month_num = now.strftime("%m")
-    current_year = now.year
+    # ─── Time Intelligence (Phase 2: delegates to formatting.get_time_context()) ───
+    # All FY/quarter/month/SMLY calculations centralized in formatting.py.
+    # Respects profile.financial_year_start setting.
+    tc = get_time_context(profile)
 
-    # Financial year calculations (configurable from profile, default: Apr-Mar)
-    fy_start_str = profile.get("financial_year_start", "04-01")  # "MM-DD" format
-    try:
-        fy_start_month, fy_start_day = map(int, fy_start_str.split("-"))
-    except Exception:
-        fy_start_month, fy_start_day = 4, 1  # Default to April 1st
-
-    # Current FY determination
-    if now.month >= fy_start_month or (now.month == fy_start_month and now.day >= fy_start_day):
-        fy_year_start = current_year
-        fy_year_end = current_year + 1
-    else:
-        fy_year_start = current_year - 1
-        fy_year_end = current_year
-
-    fy_start = f"{fy_year_start}-{str(fy_start_month).zfill(2)}-{str(fy_start_day).zfill(2)}"
-    fy_end = f"{fy_year_end}-{str(fy_start_month).zfill(2)}-{str(fy_start_day).zfill(2) if fy_start_day > 1 else '01'}"
-    # Adjust fy_end to be one day before next FY start
-    if fy_start_day == 1:
-        import datetime
-        fy_end_date = datetime.datetime.strptime(fy_start, "%Y-%m-%d") - datetime.timedelta(days=1)
-        fy_end = fy_end_date.strftime("%Y-%m-%d")
-    else:
-        fy_end = f"{fy_year_end}-{str(fy_start_month - 1).zfill(2)}-{str(fy_start_day - 1).zfill(2)}"
-
-    fy_label = f"FY {fy_year_start}-{str(fy_year_end)[-2:]}"
-    fy_short = f"{str(fy_year_start)[-2:]}{str(fy_year_end)[-2:]}"
-
-    # Previous financial year
-    prev_fy_year_start = fy_year_start - 1
-    prev_fy_year_end = fy_year_start
-    prev_fy_start = f"{prev_fy_year_start}-{str(fy_start_month).zfill(2)}-{str(fy_start_day).zfill(2)}"
-    prev_fy_label = f"FY {prev_fy_year_start}-{str(prev_fy_year_end)[-2:]}"
-
-    # Quarter calculation (depends on FY start month)
-    months_into_fy = (now.month - fy_start_month) % 12
-    fy_q = (months_into_fy // 3) + 1
-
-    # Quarter date ranges
-    q_lengths = {1: (0, 1, 2), 2: (3, 4, 5), 3: (6, 7, 8), 4: (9, 10, 11)}
-    q_month_offsets = q_lengths[fy_q]
-    q_start_month = (fy_start_month + q_month_offsets[0]) % 12 or 12
-    q_start_year = fy_year_start if (fy_start_month + q_month_offsets[0]) < 12 else fy_year_start
-    if fy_q == 1:
-        q_from = f"{fy_year_start}-{str(fy_start_month).zfill(2)}-{str(fy_start_day).zfill(2)}"
-    else:
-        q_from = f"{fy_year_start}-{str(q_start_month).zfill(2)}-01"
-
-    # Simple approach: just compute quarter dates directly based on month
-    if fy_q == 1:
-        q_from = f"{fy_year_start}-{str(fy_start_month).zfill(2)}-{str(fy_start_day).zfill(2)}"
-        q_to_month = (fy_start_month + 2) % 12 or 12
-        q_to_year = fy_year_start if q_to_month >= fy_start_month else fy_year_start + 1
-        q_to = f"{q_to_year}-{str(q_to_month).zfill(2)}-28"
-    elif fy_q == 2:
-        q_from_month = (fy_start_month + 3) % 12 or 12
-        q_from_year = fy_year_start if q_from_month >= fy_start_month else fy_year_start + 1
-        q_from = f"{q_from_year}-{str(q_from_month).zfill(2)}-01"
-        q_to_month = (fy_start_month + 5) % 12 or 12
-        q_to_year = fy_year_start if q_to_month >= fy_start_month else fy_year_start + 1
-        q_to = f"{q_to_year}-{str(q_to_month).zfill(2)}-28"
-    elif fy_q == 3:
-        q_from_month = (fy_start_month + 6) % 12 or 12
-        q_from_year = fy_year_start if q_from_month >= fy_start_month else fy_year_start + 1
-        q_from = f"{q_from_year}-{str(q_from_month).zfill(2)}-01"
-        q_to_month = (fy_start_month + 8) % 12 or 12
-        q_to_year = fy_year_start if q_to_month >= fy_start_month else fy_year_start + 1
-        q_to = f"{q_to_year}-{str(q_to_month).zfill(2)}-28"
-    else:  # fy_q == 4
-        q_from_month = (fy_start_month + 9) % 12 or 12
-        q_from_year = fy_year_start if q_from_month >= fy_start_month else fy_year_start + 1
-        q_from = f"{q_from_year}-{str(q_from_month).zfill(2)}-01"
-        q_to = f"{fy_year_end}-{str(fy_start_month - 1).zfill(2)}-28"
-
-    # Current month date range
-    month_start = now.replace(day=1).strftime("%Y-%m-%d")
-
-    # Last month
-    first_of_this_month = now.replace(day=1)
-    last_day_prev = first_of_this_month - timedelta(days=1)
-    first_of_prev = last_day_prev.replace(day=1)
-    last_month_start = first_of_prev.strftime("%Y-%m-%d")
-    last_month_end = last_day_prev.strftime("%Y-%m-%d")
-    last_month_label = first_of_prev.strftime("%B %Y")
-
-    # Same month last year
-    smly_start = f"{current_year - 1}-{current_month_num}-01"
-    smly_end_month = now.replace(year=current_year - 1)
-    smly_end = smly_end_month.strftime("%Y-%m-%d")
+    today = tc["today"]
+    current_month = tc["current_month"]
+    fy_label = tc["fy_label"]
+    fy_start = tc["fy_start"]
+    fy_end = tc["fy_end"]
+    prev_fy_label = tc["prev_fy_label"]
+    prev_fy_start = tc["prev_fy_start"]
+    fy_q = tc["fy_q"]
+    q_from = tc["q_from"]
+    q_to = tc["q_to"]
+    month_start = tc["month_start"]
+    last_month_label = tc["last_month_label"]
+    last_month_start = tc["last_month_start"]
+    last_month_end = tc["last_month_end"]
+    smly_start = tc["smly_start"]
+    smly_end = tc["smly_end"]
 
     # ─── Build time context (shared across all tiers) ─────────────────────
     time_context = f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ## 🕐 TIME CONTEXT (Use for all date-relative queries)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-- **Today:** {today} ({now.strftime("%A, %d %B %Y")})
+- **Today:** {today} ({tc["now_full_date"]})
 - **Current Month:** {current_month} ({month_start} to {today})
 - **Last Month:** {last_month_label} ({last_month_start} to {last_month_end})
 - **Current Quarter:** Q{fy_q} of {fy_label} ({q_from} to {q_to})
@@ -548,6 +509,7 @@ If the user has preferences, always respect them."""
     if tier == "executive":
         custom_doctypes = _build_custom_doctypes_section(profile)
         industry_benchmarks = _build_industry_benchmarks_section(profile)
+        approval_workflows = _build_approval_workflows_section(profile)
 
         executive_addendum = f"""
 
@@ -567,12 +529,13 @@ When asked for "board summary", "investor update", or "quarterly review":
 ### Strategic Framework
 For strategic questions, use Porter's Five Forces or SWOT as appropriate.
 Quantify every strategic recommendation with ERPNext data.
-{industry_benchmarks}"""
+{industry_benchmarks}{approval_workflows}"""
 
     # ─── Build full prompt ───────────────────────────────────────────────
     company_identity = _build_company_identity(profile)
     number_format = _build_number_format_rules(profile)
     personality = _build_personality(profile)
+    error_recovery_text = build_error_recovery_text()
 
     prompt = f"""You are **AskERP** — the executive intelligence engine for {profile.get('trading_name', profile.get('company_name', 'Your Company'))}. You combine the analytical depth of a **CFO**, the operational acumen of a **CTO**, and the strategic vision of a **CEO** into one conversational interface.
 
@@ -592,8 +555,8 @@ You don't just answer questions — you **think critically**, **spot patterns**,
 When answering ANY financial question, think like a CFO:
 
 **1. Revenue Analysis**
-- Gross Revenue (Sales Invoice grand_total, is_return=0, docstatus=1)
-- Net Revenue (after returns: gross minus return invoices where is_return=1)
+- Gross Revenue (from submitted sales invoices, excluding returns)
+- Net Revenue (gross minus return invoices)
 - Revenue by company, territory, customer, product, salesperson
 - Revenue run-rate: (YTD revenue ÷ months elapsed) × 12 = annualized estimate
 - Revenue concentration risk: if top 5 customers > 50% of revenue, flag it
@@ -741,68 +704,10 @@ When asked for a "business pulse", "how are we doing", or "executive summary":
 8. **Alerts:** Any critical items (high aging, low stock, overdue payments)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-## 📊 ERPNEXT DATA MODEL — Complete Reference
+## 📊 DATABASE SCHEMA REFERENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-### Sales Doctypes
-- **Sales Order (SO):** customer, customer_name, grand_total, net_total, transaction_date, delivery_date, status, territory, company, sales_partner, commission_rate
-  - Child: Sales Order Item → item_code, item_name, qty, rate, amount, warehouse, delivery_date
-- **Sales Invoice (SI):** customer, customer_name, grand_total, net_total, outstanding_amount, posting_date, status, company, territory, is_return, return_against, sales_partner
-  - Child: Sales Invoice Item → item_code, item_name, qty, rate, amount, warehouse, cost_center
-  - **KEY FIELDS:** grand_total (with tax), net_total (without tax), base_grand_total (in base currency)
-- **Delivery Note (DN):** customer, grand_total, posting_date, status, company, total_net_weight, transporter_name
-  - Child: Delivery Note Item → item_code, qty, rate, amount, warehouse, against_sales_order
-
-### Purchase Doctypes
-- **Purchase Order (PO):** supplier, supplier_name, grand_total, transaction_date, status, company
-  - Child: Purchase Order Item → item_code, qty, rate, amount, warehouse, schedule_date
-- **Purchase Invoice (PI):** supplier, supplier_name, grand_total, outstanding_amount, posting_date, status, company, is_return
-  - Child: Purchase Invoice Item → item_code, qty, rate, amount, warehouse
-- **Purchase Receipt (PR):** supplier, grand_total, posting_date, status, company
-
-### Inventory Doctypes
-- **Stock Entry (SE):** stock_entry_type, posting_date, company, total_amount
-  - stock_entry_type: "Material Receipt", "Material Issue", "Material Transfer", "Manufacture", "Repack"
-  - Child: Stock Entry Detail → item_code, qty, basic_rate, basic_amount, s_warehouse (source), t_warehouse (target)
-- **Bin:** item_code, warehouse, actual_qty, planned_qty, reserved_qty, ordered_qty — REAL-TIME stock levels
-- **Work Order (WO):** production_item, qty, produced_qty, status, planned_start_date, company, bom_no
-
-### Finance Doctypes
-- **Payment Entry (PE):** party_type, party, party_name, paid_amount, posting_date, payment_type, company, mode_of_payment, reference_no, reference_date
-  - payment_type: "Receive" (from customer), "Pay" (to supplier), "Internal Transfer"
-  - Child: Payment Entry Reference → reference_doctype, reference_name, total_amount, outstanding_amount, allocated_amount
-- **Journal Entry (JE):** posting_date, total_debit, total_credit, company, voucher_type
-  - Child: Journal Entry Account → account, debit_in_account_currency, credit_in_account_currency, party_type, party
-
-### Master Doctypes
-- **Customer:** customer_name, customer_group, territory, customer_type, default_currency, disabled
-- **Supplier:** supplier_name, supplier_group, supplier_type, country
-- **Item:** item_code, item_name, item_group, stock_uom, standard_rate, is_stock_item, has_batch_no
-- **Warehouse:** name, warehouse_name, company, is_group, disabled
-- **Employee:** employee_name, department, designation, company, status, date_of_joining
-- **Territory:** name, parent_territory, is_group
-- **Price List:** price_list_name, currency, selling, buying
-
-{_build_custom_doctypes_section(profile)}
-
-### Key ERPNext Reports (use run_report tool)
-| Report | Best For | Key Filters |
-|--------|----------|-------------|
-| **Accounts Receivable** | Aging, who owes | company, ageing_based_on, range1-4 |
-| **Accounts Payable** | What we owe | company, ageing_based_on |
-| **General Ledger** | Transaction detail | company, account, from_date, to_date, party |
-| **Trial Balance** | Account balances | company, from_date, to_date |
-| **Balance Sheet** | Financial position | company, period_start_date, period_end_date |
-| **Profit and Loss** | P&L statement | company, from_date, to_date |
-| **Cash Flow** | Cash movement | company, from_date, to_date |
-| **Stock Balance** | Inventory levels | company, warehouse, item_code |
-| **Stock Ledger** | Stock movements | item_code, warehouse, from_date, to_date |
-| **Sales Analytics** | Sales trends | company, from_date, to_date, range |
-| **Purchase Analytics** | Purchase trends | company, from_date, to_date |
-| **Gross Profit** | Margin analysis | company, from_date, to_date |
-| **Item-wise Sales Register** | Product detail | company, from_date, to_date |
-| **Customer Ledger Summary** | Customer summary | company, from_date, to_date |
-| **Supplier Ledger Summary** | Supplier summary | company, from_date, to_date |
+{_build_data_model_section(profile)}
 
 {number_format}
 
@@ -870,58 +775,6 @@ For complex questions, use multiple tool calls in sequence:
 4. Total payables outstanding
 5. Calculate net cash flow, working capital, DSO, DPO
 
-### SQL Query Patterns (for run_sql_query tool)
-```sql
--- Revenue by territory with growth
-SELECT territory, SUM(grand_total) as revenue
-FROM `tabSales Invoice`
-WHERE docstatus=1 AND is_return=0 AND posting_date BETWEEN 'YYYY-MM-DD' AND 'YYYY-MM-DD'
-GROUP BY territory ORDER BY revenue DESC
-
--- Customer concentration
-SELECT customer_name, SUM(grand_total) as total,
-  SUM(grand_total) * 100.0 / (SELECT SUM(grand_total) FROM `tabSales Invoice` WHERE docstatus=1 AND is_return=0 AND posting_date BETWEEN x AND y) as pct
-FROM `tabSales Invoice`
-WHERE docstatus=1 AND is_return=0 AND posting_date BETWEEN x AND y
-GROUP BY customer_name ORDER BY total DESC LIMIT 20
-
--- DSO calculation
-SELECT COALESCE(SUM(outstanding_amount), 0) as total_outstanding
-FROM `tabSales Invoice` WHERE company='X' AND docstatus=1 AND outstanding_amount > 0
-
--- Aging buckets
-SELECT
-  SUM(CASE WHEN DATEDIFF(CURDATE(), posting_date) <= 30 THEN outstanding_amount ELSE 0 END) as bucket_0_30,
-  SUM(CASE WHEN DATEDIFF(CURDATE(), posting_date) BETWEEN 31 AND 60 THEN outstanding_amount ELSE 0 END) as bucket_31_60,
-  SUM(CASE WHEN DATEDIFF(CURDATE(), posting_date) BETWEEN 61 AND 90 THEN outstanding_amount ELSE 0 END) as bucket_61_90,
-  SUM(CASE WHEN DATEDIFF(CURDATE(), posting_date) > 90 THEN outstanding_amount ELSE 0 END) as bucket_90_plus
-FROM `tabSales Invoice` WHERE docstatus=1 AND outstanding_amount > 0 AND company='X'
-
--- Item-wise sales volume and value
-SELECT si_item.item_name, SUM(si_item.qty) as total_qty, SUM(si_item.amount) as total_value,
-  AVG(si_item.rate) as avg_rate
-FROM `tabSales Invoice Item` si_item
-JOIN `tabSales Invoice` si ON si.name = si_item.parent
-WHERE si.docstatus=1 AND si.is_return=0 AND si.posting_date BETWEEN x AND y
-GROUP BY si_item.item_name ORDER BY total_value DESC
-
--- Stock value by warehouse
-SELECT warehouse, SUM(actual_qty * valuation_rate) as stock_value, SUM(actual_qty) as total_qty
-FROM `tabBin` WHERE actual_qty > 0
-GROUP BY warehouse ORDER BY stock_value DESC
-```
-
-### Best Practices for Queries
-- **Always filter docstatus=1** for submitted documents
-- **Always exclude returns** for revenue queries: is_return=0
-- **Use company filter** when showing company-specific data
-- **Default date range**: If no date specified, use current financial year
-- **For "sales"**: query Sales Invoice (not Sales Order) unless user says "orders"
-- **For "outstanding"**: query outstanding_amount field on SI/PI
-- **For "stock"**: use Bin doctype for real-time quantities, Stock Balance report for detailed view
-- **For "collections"**: Payment Entry with payment_type='Receive'
-- **For child table JOINs**: use `tabParent Item`.parent = `tabParent`.name pattern
-
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ## 🚨 ALERT SYSTEM
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -940,6 +793,12 @@ Use the create_alert tool with:
 Respond with a confirmation like:
 > ✅ **Alert Created:** "High Receivables Warning"
 > I'll check daily if total receivables exceed threshold and notify you immediately.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## 🔄 TOOL ERROR RECOVERY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{error_recovery_text}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ## 🔒 SAFETY & SECURITY
@@ -999,6 +858,7 @@ def _build_field_prompt(time_context, user_context, profile):
     trading_name = profile.get("trading_name", company_name)
     what_you_sell = profile.get("what_you_sell", "Products and Services")
     what_you_buy = profile.get("what_you_buy", "Raw materials and supplies")
+    key_doctypes_text = build_key_doctypes_text()
 
     return f"""You are **AskERP** — a quick, helpful business assistant for {trading_name} field operations.
 
@@ -1022,13 +882,7 @@ Keep answers short and actionable. Focus on simple lookups and quick answers.
 ## 📊 KEY DOCTYPES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-- **Sales Order (SO):** customer, grand_total, transaction_date, status, territory
-- **Sales Invoice (SI):** customer, grand_total, outstanding_amount, posting_date, is_return
-- **Delivery Note (DN):** customer, grand_total, posting_date, status, total_net_weight
-- **Customer:** customer_name, customer_group, territory
-- **Item:** item_code, item_name, item_group, stock_uom, standard_rate
-- **Bin:** item_code, warehouse, actual_qty (real-time stock)
-- **Payment Entry (PE):** party, paid_amount, posting_date, payment_type
+{key_doctypes_text}
 
 {_build_number_format_rules(profile)}
 
@@ -1079,72 +933,26 @@ def get_template_variables(user: str) -> Dict[str, str]:
     # Load business profile
     profile = _get_business_profile()
 
-    # ─── Time variables ───────────────────────────────────────────────
-    today = frappe.utils.today()
-    now = frappe.utils.now_datetime()
-
-    # Financial year (configurable)
-    fy_start_str = profile.get("financial_year_start", "04-01")
-    try:
-        fy_start_month, fy_start_day = map(int, fy_start_str.split("-"))
-    except Exception:
-        # Handle month name format like "April"
-        month_map = {
-            "january": 1, "february": 2, "march": 3, "april": 4,
-            "may": 5, "june": 6, "july": 7, "august": 8,
-            "september": 9, "october": 10, "november": 11, "december": 12,
-        }
-        fy_start_month = month_map.get(str(fy_start_str).lower().strip(), 4)
-        fy_start_day = 1
-
-    current_year = now.year
-    current_month_num = now.strftime("%m")
-
-    if now.month >= fy_start_month:
-        fy_year_start = current_year
-        fy_year_end = current_year + 1
-    else:
-        fy_year_start = current_year - 1
-        fy_year_end = current_year
-
-    fy_start = f"{fy_year_start}-{str(fy_start_month).zfill(2)}-{str(fy_start_day).zfill(2)}"
-    fy_label = f"FY {fy_year_start}-{str(fy_year_end)[-2:]}"
-    fy_short = f"{str(fy_year_start)[-2:]}{str(fy_year_end)[-2:]}"
-
-    # FY end date
-    import datetime as dt
-    fy_end_date = dt.datetime.strptime(f"{fy_year_end}-{str(fy_start_month).zfill(2)}-{str(fy_start_day).zfill(2)}", "%Y-%m-%d") - timedelta(days=1)
-    fy_end = fy_end_date.strftime("%Y-%m-%d")
-
-    # Previous FY
-    prev_fy_start = f"{fy_year_start - 1}-{str(fy_start_month).zfill(2)}-{str(fy_start_day).zfill(2)}"
-    prev_fy_label = f"FY {fy_year_start - 1}-{str(fy_year_start)[-2:]}"
-
-    # Quarter
-    months_into_fy = (now.month - fy_start_month) % 12
-    fy_q = (months_into_fy // 3) + 1
-
-    # Quarter date ranges (simplified)
-    q_offset = (fy_q - 1) * 3
-    q_start_m = ((fy_start_month - 1 + q_offset) % 12) + 1
-    q_end_m = ((fy_start_month - 1 + q_offset + 2) % 12) + 1
-    q_start_y = fy_year_start if q_start_m >= fy_start_month else fy_year_end
-    q_end_y = fy_year_start if q_end_m >= fy_start_month else fy_year_end
-    q_from = f"{q_start_y}-{str(q_start_m).zfill(2)}-01"
-    q_to = f"{q_end_y}-{str(q_end_m).zfill(2)}-28"
-
-    # Month dates
-    month_start = now.replace(day=1).strftime("%Y-%m-%d")
-    first_of_this_month = now.replace(day=1)
-    last_day_prev = first_of_this_month - timedelta(days=1)
-    first_of_prev = last_day_prev.replace(day=1)
-    last_month_start = first_of_prev.strftime("%Y-%m-%d")
-    last_month_end = last_day_prev.strftime("%Y-%m-%d")
-    last_month_label = first_of_prev.strftime("%B %Y")
-
-    # Same Month Last Year
-    smly_start = f"{current_year - 1}-{current_month_num}-01"
-    smly_end = now.replace(year=current_year - 1).strftime("%Y-%m-%d")
+    # ─── Time variables (Phase 2: delegates to formatting.get_time_context()) ──
+    tc = get_time_context(profile)
+    today = tc["today"]
+    current_year = str(tc["current_year"])
+    current_month_num = tc["current_month_num"]
+    month_start = tc["month_start"]
+    fy_label = tc["fy_label"]
+    fy_short = tc["fy_short"]
+    fy_start = tc["fy_start"]
+    fy_end = tc["fy_end"]
+    prev_fy_label = tc["prev_fy_label"]
+    prev_fy_start = tc["prev_fy_start"]
+    fy_q = tc["fy_q"]
+    q_from = tc["q_from"]
+    q_to = tc["q_to"]
+    last_month_label = tc["last_month_label"]
+    last_month_start = tc["last_month_start"]
+    last_month_end = tc["last_month_end"]
+    smly_start = tc["smly_start"]
+    smly_end = tc["smly_end"]
 
     # ─── Memory context ───────────────────────────────────────────────
     memory_content = ""
@@ -1171,10 +979,10 @@ def get_template_variables(user: str) -> Dict[str, str]:
 
         # Time Context
         "today": today,
-        "now_full_date": now.strftime("%A, %d %B %Y"),
-        "current_month": now.strftime("%B %Y"),
+        "now_full_date": tc["now_full_date"],
+        "current_month": tc["current_month"],
         "current_month_num": current_month_num,
-        "current_year": str(current_year),
+        "current_year": current_year,
         "month_start": month_start,
         "month_end": today,
         "last_month_label": last_month_label,
@@ -1230,6 +1038,10 @@ def get_template_variables(user: str) -> Dict[str, str]:
         "custom_terminology": str(profile.get("custom_terminology", "{}")),
         "custom_doctypes_info": str(profile.get("custom_doctypes_info", "{}")),
         "industry_benchmarks": str(profile.get("industry_benchmarks", "{}")),
+        "approval_workflows": str(profile.get("approval_workflows", "")),
+
+        # Dynamic Schema (resolved at runtime from live ERPNext metadata)
+        "key_doctypes": build_key_doctypes_text(),
 
         # Memory
         "memory_context": memory_content,

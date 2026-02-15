@@ -449,9 +449,9 @@ def _execute_sql_query(tool_doc, params, user):
         frappe.set_user(user)
 
         # Set a 30-second timeout for safety
-        frappe.db.sql("SET SESSION MAX_EXECUTION_TIME = 30000")
+        frappe.db.sql("SET SESSION max_statement_time = 30")  # 30s timeout (MariaDB syntax)
         data = frappe.db.sql(sql, safe_params, as_dict=True)
-        frappe.db.sql("SET SESSION MAX_EXECUTION_TIME = 0")
+        frappe.db.sql("SET SESSION max_statement_time = 0")  # Reset to default
 
         truncated = len(data) > limit
         data = data[:limit]
@@ -459,7 +459,7 @@ def _execute_sql_query(tool_doc, params, user):
         return {"data": data, "count": len(data), "truncated": truncated}
     except Exception as e:
         try:
-            frappe.db.sql("SET SESSION MAX_EXECUTION_TIME = 0")
+            frappe.db.sql("SET SESSION max_statement_time = 0")
         except Exception:
             pass
         raise

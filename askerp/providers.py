@@ -20,6 +20,7 @@ Usage:
 import json
 import frappe
 import requests
+from askerp.formatting import get_role_sets
 
 
 # ─── Normalized Response Format ─────────────────────────────────────────────
@@ -131,7 +132,7 @@ def _call_anthropic(model_doc, messages, system_prompt, tools=None):
     max_retries = 2
     for attempt in range(max_retries + 1):
         try:
-            resp = requests.post(base_url, json=payload, headers=headers, timeout=180)
+            resp = requests.post(base_url, json=payload, headers=headers, timeout=get_tuning_value("api_timeout_seconds", 180))
 
             if resp.status_code == 200:
                 data = resp.json()
@@ -146,7 +147,7 @@ def _call_anthropic(model_doc, messages, system_prompt, tools=None):
                         message=f"Model {model_doc.model_id} doesn't support thinking. Retrying without it."
                     )
                     del payload["thinking"]
-                    resp = requests.post(base_url, json=payload, headers=headers, timeout=180)
+                    resp = requests.post(base_url, json=payload, headers=headers, timeout=get_tuning_value("api_timeout_seconds", 180))
                     if resp.status_code == 200:
                         data = resp.json()
                         return _normalize_anthropic_response(data)
@@ -234,7 +235,7 @@ def _call_anthropic_stream(model_doc, messages, system_prompt, tools=None):
     }
 
     try:
-        resp = requests.post(base_url, json=payload, headers=headers, timeout=180, stream=True)
+        resp = requests.post(base_url, json=payload, headers=headers, timeout=get_tuning_value("api_timeout_seconds", 180), stream=True)
         if resp.status_code == 200:
             return resp  # Return raw response for SSE parsing
 
@@ -247,7 +248,7 @@ def _call_anthropic_stream(model_doc, messages, system_prompt, tools=None):
                     message=f"Model {model_doc.model_id} doesn't support thinking. Retrying without it."
                 )
                 del payload["thinking"]
-                resp = requests.post(base_url, json=payload, headers=headers, timeout=180, stream=True)
+                resp = requests.post(base_url, json=payload, headers=headers, timeout=get_tuning_value("api_timeout_seconds", 180), stream=True)
                 if resp.status_code == 200:
                     return resp
 
@@ -733,6 +734,24 @@ def get_settings():
         return None
 
 
+def get_tuning_value(field_name, default):
+    """
+    Get an Advanced Tuning value from AskERP Settings, with fallback default.
+    Used for configurable operational parameters (P2.4).
+
+    Args:
+        field_name: e.g. "max_tool_rounds", "api_timeout_seconds"
+        default: fallback if settings not found or field is 0/empty
+    """
+    settings = get_settings()
+    if not settings:
+        return default
+    val = settings.get(field_name)
+    if val is not None and val != 0 and val != "":
+        return int(val)
+    return default
+
+
 def get_model_for_tier(tier_name):
     """
     Get the model document for a given tier.
@@ -831,11 +850,11 @@ def get_daily_limit_for_user(user, model_doc):
     if not settings:
         return 50  # Hardcoded absolute fallback
 
-    # Check if field staff
-    field_roles = {"Sales User", "Stock User", "Manufacturing User", "Purchase User"}
-    mgmt_roles = {"System Manager", "Accounts Manager", "Sales Manager", "Purchase Manager", "Stock Manager"}
+    # Check if field staff (using dynamic role sets from AskERP Settings)
+    role_sets = get_role_sets()
+    exec_mgmt_roles = role_sets["executive"] | role_sets["management"]
 
-    if field_roles.intersection(user_roles) and not mgmt_roles.intersection(user_roles):
+    if not exec_mgmt_roles.intersection(user_roles):
         return settings.field_staff_daily_limit or 30
 
     return settings.default_daily_limit or 50

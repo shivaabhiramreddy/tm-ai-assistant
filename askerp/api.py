@@ -33,8 +33,21 @@ from frappe import _
 
 # ─── Configuration ────────────────────────────────────────────────────────
 
-MAX_CONTEXT_MESSAGES = 20  # Max messages to send to Claude for context
-MAX_STORED_MESSAGES = 100  # Max messages to store per session (pruning threshold)
+# Defaults — overridable via AskERP Settings > Advanced Tuning (P2.4)
+_DEFAULT_MAX_CONTEXT_MESSAGES = 20
+_DEFAULT_MAX_STORED_MESSAGES = 100
+
+
+def _get_max_context_messages():
+    """Get configurable max context messages from AskERP Settings."""
+    from .providers import get_tuning_value
+    return get_tuning_value("max_context_messages", _DEFAULT_MAX_CONTEXT_MESSAGES)
+
+
+def _get_max_stored_messages():
+    """Get configurable max stored messages from AskERP Settings."""
+    from .providers import get_tuning_value
+    return get_tuning_value("max_stored_messages", _DEFAULT_MAX_STORED_MESSAGES)
 
 
 # ─── Tier-to-Complexity mapping for AI Usage Log ────────────────────────────
@@ -173,16 +186,17 @@ def _async_smart_title(session_name, message, response_text):
 
 def _prune_messages(messages):
     """
-    Sprint 6A: Prune old messages if session exceeds MAX_STORED_MESSAGES.
+    Sprint 6A: Prune old messages if session exceeds max_stored_messages.
     Keeps the first 2 messages (establishes context) and the most recent messages.
-    Returns the pruned list.
+    Returns the pruned list. Threshold configurable via AskERP Settings.
     """
-    if len(messages) <= MAX_STORED_MESSAGES:
+    max_stored = _get_max_stored_messages()
+    if len(messages) <= max_stored:
         return messages
 
-    # Keep first 2 (session opener) + last (MAX_STORED_MESSAGES - 4) + pruning marker
+    # Keep first 2 (session opener) + last (max_stored - 4) + pruning marker
     first_messages = messages[:2]
-    keep_count = MAX_STORED_MESSAGES - 3  # 2 first + 1 marker
+    keep_count = max_stored - 3  # 2 first + 1 marker
     recent_messages = messages[-keep_count:]
     pruned_count = len(messages) - 2 - keep_count
 
@@ -290,8 +304,9 @@ def _get_context_messages(messages):
     Get the last N messages formatted for Claude API.
     Only sends role + content (strips metadata like timestamps).
     """
-    # Take last MAX_CONTEXT_MESSAGES messages
-    recent = messages[-MAX_CONTEXT_MESSAGES:] if len(messages) > MAX_CONTEXT_MESSAGES else messages
+    # Take last N messages (configurable via AskERP Settings)
+    max_ctx = _get_max_context_messages()
+    recent = messages[-max_ctx:] if len(messages) > max_ctx else messages
 
     return [
         {"role": m["role"], "content": m["content"]}
@@ -543,11 +558,14 @@ def chat(message, session_id=None):
             model = result.get("model", "unknown")
             cost = result.get("cost") or {"cost_input": 0, "cost_output": 0, "cost_total": 0}
             usage = result.get("usage") or {}
+            # Store response text for debugging (truncate to 10K to avoid bloat)
+            response_text = result.get("response", "")
             frappe.get_doc({
                 "doctype": "AI Usage Log",
                 "user": user,
                 "session_id": session.session_id,
                 "question": message[:500],
+                "response": response_text[:10000] if response_text else "",
                 "model": model,
                 "input_tokens": usage.get("input_tokens", 0),
                 "output_tokens": usage.get("output_tokens", 0),
@@ -880,12 +898,14 @@ def _run_stream_job(stream_id, user, message, session_name, session_id_str,
         model = result.get("model", "unknown")
         cost = result.get("cost") or {"cost_input": 0, "cost_output": 0, "cost_total": 0}
         usage = result.get("usage") or {}
+        stream_response_text = result.get("response", "")
         try:
             frappe.get_doc({
                 "doctype": "AI Usage Log",
                 "user": user,
                 "session_id": session_id_str,
                 "question": message[:500],
+                "response": stream_response_text[:10000] if stream_response_text else "",
                 "model": model,
                 "input_tokens": usage.get("input_tokens", 0),
                 "output_tokens": usage.get("output_tokens", 0),
@@ -1101,7 +1121,6 @@ def usage(period="today"):
     total_output = sum(l.get("output_tokens", 0) or 0 for l in logs)
     total_cache_read = sum(l.get("cache_read_tokens", 0) or 0 for l in logs)
     actual_cost_usd = sum(l.get("cost_total", 0) or 0 for l in logs)
-    actual_cost_inr = actual_cost_usd * 85  # Approximate USD to INR
 
     return {
         "period": period,
@@ -1113,7 +1132,6 @@ def usage(period="today"):
             "cache_read_tokens": total_cache_read,
             "total_queries": sum(l.get("query_count", 0) or 0 for l in logs),
             "cost_usd": round(actual_cost_usd, 4),
-            "cost_inr": round(actual_cost_inr, 2),
         },
     }
 
@@ -1559,3 +1577,388 @@ def search_sessions(query, limit=20):
         })
 
     return {"results": results}
+
+
+# ─── User Preferences Endpoints (P2.2) ────────────────────────────────────────
+
+@frappe.whitelist()
+def get_preferences():
+    """
+    Return the current user's AI preferences.
+
+    Returns:
+        dict: {preferences: {key: value, ...}, quick_settings: {...}}
+    """
+    user = frappe.session.user
+    if not _check_ai_access(user):
+        return {"preferences": {}, "quick_settings": {}}
+
+    from .memory import get_user_preferences
+    prefs = get_user_preferences(user)
+
+    # Build quick settings with defaults
+    quick_settings = {
+        "response_language": prefs.pop("response_language", "English"),
+        "number_format": prefs.pop("number_format", "indian"),
+        "response_style": prefs.pop("response_style", "concise"),
+    }
+
+    # Multi-company: get available companies for the user
+    companies = []
+    try:
+        companies = frappe.get_all(
+            "Company",
+            filters={"name": ["in", frappe.get_all("User Permission",
+                filters={"user": user, "allow": "Company"},
+                pluck="for_value",
+            )]} if frappe.db.count("User Permission",
+                {"user": user, "allow": "Company"}) > 0
+            else {},
+            pluck="name",
+            order_by="name asc",
+            limit=10,
+        )
+    except Exception:
+        pass
+
+    default_company = prefs.pop("default_company", "")
+
+    quick_settings["default_company"] = default_company
+    quick_settings["available_companies"] = companies
+
+    return {
+        "preferences": prefs,  # Remaining custom preferences (AI-learned)
+        "quick_settings": quick_settings,
+    }
+
+
+@frappe.whitelist()
+def save_preferences(quick_settings=None, custom_key=None, custom_value=None):
+    """
+    Save user AI preferences.
+
+    Can be called in two modes:
+    1. Bulk quick settings: save_preferences(quick_settings={...})
+    2. Single custom preference: save_preferences(custom_key="x", custom_value="y")
+
+    Args:
+        quick_settings (str/dict): JSON string or dict of quick settings to save
+        custom_key (str): Key for a single custom preference
+        custom_value (str): Value for the custom preference
+
+    Returns:
+        dict: {success: True/False}
+    """
+    user = frappe.session.user
+    if not _check_ai_access(user):
+        return {"success": False, "message": "AI access not enabled"}
+
+    from .memory import get_user_preferences, save_user_preference
+
+    try:
+        if quick_settings:
+            # Parse if string
+            if isinstance(quick_settings, str):
+                quick_settings = json.loads(quick_settings)
+
+            # Validate allowed quick setting keys
+            allowed_keys = {"response_language", "number_format", "response_style", "default_company"}
+            for key, value in quick_settings.items():
+                if key in allowed_keys:
+                    save_user_preference(user, key, str(value))
+
+            return {"success": True}
+
+        elif custom_key and custom_value is not None:
+            # Sanitize key: alphanumeric + underscore only, max 50 chars
+            clean_key = "".join(c for c in str(custom_key) if c.isalnum() or c == "_")[:50]
+            if not clean_key:
+                return {"success": False, "message": "Invalid preference key"}
+
+            save_user_preference(user, clean_key, str(custom_value)[:500])
+            return {"success": True}
+
+        else:
+            return {"success": False, "message": "No data provided"}
+
+    except Exception as e:
+        frappe.log_error(title="AskERP: Save Preferences Error", message=str(e))
+        return {"success": False, "message": "Failed to save preferences"}
+
+
+@frappe.whitelist()
+def delete_preference(key):
+    """
+    Delete a single user AI preference by key.
+
+    Args:
+        key (str): Preference key to delete
+
+    Returns:
+        dict: {success: True/False}
+    """
+    user = frappe.session.user
+    if not _check_ai_access(user):
+        return {"success": False}
+
+    try:
+        from .memory import get_user_preferences
+
+        if not frappe.db.has_column("User", "custom_ai_preferences"):
+            return {"success": False, "message": "Preferences not available"}
+
+        prefs = get_user_preferences(user)
+        if key in prefs:
+            del prefs[key]
+            frappe.db.set_value("User", user, "custom_ai_preferences",
+                                json.dumps(prefs, ensure_ascii=False), update_modified=False)
+            frappe.db.commit()
+
+        return {"success": True}
+
+    except Exception as e:
+        frappe.log_error(title="AskERP: Delete Preference Error", message=str(e))
+        return {"success": False, "message": "Failed to delete preference"}
+
+
+@frappe.whitelist()
+def clear_preferences():
+    """
+    Clear ALL user AI preferences (reset to defaults).
+
+    Returns:
+        dict: {success: True/False}
+    """
+    user = frappe.session.user
+    if not _check_ai_access(user):
+        return {"success": False}
+
+    try:
+        if not frappe.db.has_column("User", "custom_ai_preferences"):
+            return {"success": False, "message": "Preferences not available"}
+
+        frappe.db.set_value("User", user, "custom_ai_preferences",
+                            "{}", update_modified=False)
+        frappe.db.commit()
+        return {"success": True}
+
+    except Exception as e:
+        frappe.log_error(title="AskERP: Clear Preferences Error", message=str(e))
+        return {"success": False, "message": "Failed to clear preferences"}
+
+
+# ─── Cache Dashboard (Admin Only) ─────────────────────────────────────────
+
+@frappe.whitelist()
+def cache_dashboard(days=7):
+    """
+    Comprehensive cache metrics dashboard for System Manager admins.
+
+    Args:
+        days (int): Number of days of historical data (default 7, max 30)
+
+    Returns:
+        dict: {overview, today, daily_trend, by_tool, precomputed_metrics}
+
+    Requires: System Manager role.
+    """
+    if "System Manager" not in frappe.get_roles():
+        frappe.throw("Only System Managers can view cache metrics", frappe.PermissionError)
+
+    days = min(int(days or 7), 30)
+
+    try:
+        from .query_cache import get_cache_dashboard
+        return get_cache_dashboard(days=days)
+    except Exception as e:
+        frappe.log_error(title="AskERP: Cache Dashboard Error", message=str(e))
+        return {"error": str(e)}
+
+
+@frappe.whitelist()
+def clear_query_cache():
+    """
+    Clear all query result cache entries. System Manager only.
+
+    Returns:
+        dict: {success, cleared}
+    """
+    if "System Manager" not in frappe.get_roles():
+        frappe.throw("Only System Managers can clear cache", frappe.PermissionError)
+
+    try:
+        from .query_cache import clear_all_cache
+        result = clear_all_cache()
+        return result
+    except Exception as e:
+        frappe.log_error(title="AskERP: Clear Cache Error", message=str(e))
+        return {"success": False, "error": str(e)}
+
+
+# ─── Session Sharing (P3.4) ───────────────────────────────────────────────
+
+@frappe.whitelist()
+def share_session(session_id):
+    """
+    Generate a share link for a chat session. The link allows read-only
+    access to the conversation without authentication.
+
+    Only the session owner or a System Manager can generate share links.
+
+    Args:
+        session_id (str): The AI Chat Session name or session_id
+
+    Returns:
+        dict: {share_url, share_token, title, created_by}
+    """
+    import secrets
+    from frappe.utils import now_datetime, get_url
+
+    user = frappe.session.user
+    if not _check_ai_access(user):
+        return {"success": False, "message": "AI chat not enabled"}
+
+    # Find the session (by session_id field or name)
+    session = None
+    sessions = frappe.get_all(
+        "AI Chat Session",
+        filters={"session_id": session_id},
+        fields=["name", "user", "title", "share_token", "shared_at"],
+        limit=1,
+    )
+    if sessions:
+        session = sessions[0]
+    else:
+        # Try by document name
+        if frappe.db.exists("AI Chat Session", session_id):
+            session = frappe.get_value(
+                "AI Chat Session", session_id,
+                ["name", "user", "title", "share_token", "shared_at"],
+                as_dict=True,
+            )
+
+    if not session:
+        return {"success": False, "message": "Session not found"}
+
+    # Permission: owner or System Manager
+    is_owner = session.user == user
+    is_admin = "System Manager" in frappe.get_roles()
+    if not is_owner and not is_admin:
+        return {"success": False, "message": "You can only share your own sessions"}
+
+    # Reuse existing token if already shared
+    if session.share_token:
+        token = session.share_token
+    else:
+        # Generate a cryptographically secure 24-char hex token
+        token = secrets.token_hex(12)
+        frappe.db.set_value("AI Chat Session", session.name, {
+            "share_token": token,
+            "shared_at": now_datetime(),
+        }, update_modified=False)
+        frappe.db.commit()
+
+    share_url = f"{get_url()}/api/method/askerp.api.view_shared_session?token={token}"
+
+    return {
+        "success": True,
+        "share_url": share_url,
+        "share_token": token,
+        "title": session.title or "Untitled Session",
+        "created_by": session.user,
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def view_shared_session(token):
+    """
+    View a shared chat session. Public endpoint (no auth required).
+    Returns the session title, messages (role + content only), and summary.
+
+    Args:
+        token (str): The share token from the share link
+
+    Returns:
+        dict: {title, messages, summary, shared_by, started_at}
+    """
+    if not token or len(token) < 10:
+        frappe.throw("Invalid share link", frappe.ValidationError)
+
+    sessions = frappe.get_all(
+        "AI Chat Session",
+        filters={"share_token": token},
+        fields=["name", "user", "title", "messages_json", "session_summary",
+                "started_at", "ended_at", "status"],
+        limit=1,
+    )
+
+    if not sessions:
+        frappe.throw("Session not found or link has expired", frappe.DoesNotExistError)
+
+    session = sessions[0]
+
+    # Parse messages — only expose role + content (strip internal metadata)
+    messages = []
+    try:
+        raw_msgs = json.loads(session.messages_json or "[]")
+        for m in raw_msgs:
+            if m.get("role") and m.get("content"):
+                messages.append({
+                    "role": m["role"],
+                    "content": m["content"],
+                })
+    except (json.JSONDecodeError, TypeError):
+        messages = []
+
+    return {
+        "title": session.title or "Untitled Session",
+        "messages": messages,
+        "summary": session.session_summary or "",
+        "shared_by": session.user,
+        "started_at": str(session.started_at) if session.started_at else None,
+        "status": session.status,
+    }
+
+
+@frappe.whitelist()
+def revoke_session_share(session_id):
+    """
+    Revoke a previously shared session link. Removes the share token.
+
+    Args:
+        session_id (str): The AI Chat Session session_id or name
+
+    Returns:
+        dict: {success}
+    """
+    user = frappe.session.user
+    if not _check_ai_access(user):
+        return {"success": False}
+
+    sessions = frappe.get_all(
+        "AI Chat Session",
+        filters={"session_id": session_id},
+        fields=["name", "user"],
+        limit=1,
+    )
+    if not sessions:
+        if frappe.db.exists("AI Chat Session", session_id):
+            sessions = [frappe.get_value("AI Chat Session", session_id, ["name", "user"], as_dict=True)]
+
+    if not sessions:
+        return {"success": False, "message": "Session not found"}
+
+    session = sessions[0]
+
+    is_owner = session.user == user
+    is_admin = "System Manager" in frappe.get_roles()
+    if not is_owner and not is_admin:
+        return {"success": False, "message": "Permission denied"}
+
+    frappe.db.set_value("AI Chat Session", session.name, {
+        "share_token": None,
+        "shared_at": None,
+    }, update_modified=False)
+    frappe.db.commit()
+
+    return {"success": True}

@@ -267,28 +267,24 @@ def _create_default_settings():
 
 def _create_default_business_profile():
     """
-    Create the AskERP Business Profile singleton with FGIPL's data pre-filled.
+    Create the AskERP Business Profile singleton with sensible defaults.
 
-    This ensures Shiva's installation continues to work exactly as before
-    after the genericization — all the previously hardcoded FGIPL business
-    context is now stored in this configurable doctype.
-
-    For new installations (non-FGIPL), this creates an empty profile that
-    the admin fills in via the ERPNext UI.
+    For fresh marketplace installs, creates a minimal profile that the admin
+    fills in via the Setup Wizard or ERPNext UI. Auto-detects the default
+    company from ERPNext and pre-fills basic fields (company name, currency,
+    financial year start).
 
     Only sets values if the profile is empty — doesn't override user changes.
     """
-    import json
-
     try:
         profile = frappe.get_single("AskERP Business Profile")
-        # Profile already exists — skip pre-fill if admin already configured it
-        # Use 'industry' as sentinel: it's only set by pre-fill or manual config
+        # Profile already exists — skip if admin already configured it
+        # Use 'industry' as sentinel: it's only set by setup wizard or manual config
         if profile.industry and len(str(profile.industry).strip()) >= 3:
             print("  AskERP Business Profile already configured — skipping.")
             return
     except frappe.DoesNotExistError:
-        # Brand new install — create minimal profile (company_name is mandatory)
+        # Brand new install — create minimal profile
         profile = frappe.get_doc({
             "doctype": "AskERP Business Profile",
             "company_name": frappe.db.get_default("Company") or "My Company",
@@ -296,199 +292,113 @@ def _create_default_business_profile():
         profile.insert(ignore_permissions=True)
         profile = frappe.get_single("AskERP Business Profile")
 
-    # ─── FGIPL Pre-Fill Data ─────────────────────────────────────────────
-    # Source: docs/FGIPL-BUSINESS-PROFILE-DATA.md
-    # This data was previously hardcoded in business_context.py v4.0
+    # ─── Auto-Detect from ERPNext ─────────────────────────────────────────
+    # Pull what we can from the existing ERPNext setup so the admin has
+    # less to fill in manually. Everything else is left blank for the
+    # Setup Wizard or manual configuration.
 
-    # Section 1: Company Identity
-    profile.company_name = "Fertile Green Industries Private Limited (FGIPL)"
-    profile.trading_name = "Truemeal Feeds Private Limited (TMF)"
-    profile.industry = "Manufacturing"
-    profile.industry_detail = (
-        "Animal Feed Manufacturing — Total Mixed Ration (TMR) for ruminants "
-        "(cows, goats, sheep, buffaloes). We manufacture complete balanced feed "
-        "using corn silage, sorghum silage, paddy straw, and other roughage "
-        "ingredients at our state-of-the-art plant."
-    )
-    profile.location = "Nellore, Andhra Pradesh, India"
-    profile.company_size = "51-200 employees"
-    profile.currency = "INR"
-    profile.financial_year_start = "April"
+    default_company = frappe.db.get_default("Company") or ""
+    if default_company:
+        profile.company_name = default_company
 
-    # Multi-company setup
-    profile.multi_company_enabled = 1
-    profile.companies_detail = (
-        "1. Fertile Green Industries Private Limited (FGIPL) — Manufacturing, "
-        "procurement, production, some direct sales\n"
-        "2. Truemeal Feeds Private Limited (TMF) — Sales and distribution\n\n"
-        "CRITICAL: When user asks about 'total sales' or 'the company', query "
-        "BOTH companies and show combined + breakdown."
-    )
+        # Try to detect currency from Company doctype
+        try:
+            company_currency = frappe.db.get_value(
+                "Company", default_company, "default_currency"
+            )
+            if company_currency:
+                profile.currency = company_currency
+        except Exception:
+            profile.currency = "INR"
 
-    # Section 2: Products & Services
-    profile.what_you_sell = (
-        "- Corn Silage (fermented high-moisture stored fodder)\n"
-        "- Sorghum Silage\n"
-        "- Dehydrated Corn Silage\n"
-        "- Paddy Straw (roughage)\n"
-        "- Dry Fodder\n"
-        "- TMR Mixes (complete balanced feed blends)\n"
-        "- Concentrates (high-protein supplements)"
-    )
-    profile.what_you_buy = (
-        "- Whole Crop Maize (for silage production)\n"
-        "- Sorghum (for silage production)\n"
-        "- Paddy Straw\n"
-        "- Other roughage ingredients\n"
-        "- Packaging materials\n"
-        "- Transport services"
-    )
-    profile.unit_of_measure = "Kg (kilogram) — primary unit. Also uses Bag, Bale, Tonne."
-    profile.pricing_model = (
-        "Per Kg, ex-factory (transport extra) or delivered. "
-        "Incoterms: EXW, EXS, DAP, DPU, DTF, DCL, DNF."
-    )
+        # Try to detect country for location
+        try:
+            company_country = frappe.db.get_value(
+                "Company", default_company, "country"
+            )
+            if company_country:
+                profile.location = company_country
+        except Exception:
+            pass
 
-    # Section 3: Sales & Customers
-    profile.sales_channels = (
-        "- Direct to dairy farms and cattle owners\n"
-        "- Through Dealer/Sub-Dealer network\n"
-        "- Institutional sales (Amul, Milma, other cooperative milk companies)\n"
-        "- Own outlets"
-    )
-    profile.customer_types = (
-        "- Dairy farmers and cattle owners\n"
-        "- Dealer/Sub-Dealers (multi-level distribution)\n"
-        "- Institutional buyers (milk cooperatives)\n"
-        "- Consultants (hybrid model — facilitators who earn commission)"
-    )
-    profile.key_metrics_sales = (
-        "Monthly revenue (combined both companies), Revenue by territory, "
-        "Top 10 customer revenue, Daily sales and collections, "
-        "Average order value, DSO, Collection efficiency rate"
-    )
+    # ─── Sensible Defaults (industry-agnostic) ────────────────────────────
+    # These provide a working baseline. The Setup Wizard will guide the
+    # admin to customize everything for their specific business.
 
-    # Section 4: Operations & Production
-    profile.has_manufacturing = 1
-    profile.manufacturing_detail = (
-        "- State-of-the-art TMR manufacturing plant in Nellore\n"
-        "- 30+ silage bunkers for raw material storage\n"
-        "- Procurement through contract farming\n"
-        "- Heavy field operations for procurement across farming regions\n"
-        "- BOM-based production with batch tracking\n"
-        "- Quality inspection at multiple stages"
-    )
-    profile.key_metrics_production = (
-        "Work Order completion rate, Production yield, "
-        "Bunker/silage inventory levels, Rejection/wastage rate, "
-        "Capacity utilization"
-    )
+    if not profile.currency:
+        profile.currency = "INR"
 
-    # Section 5: Finance & Accounting
-    profile.accounting_focus = (
-        "- Outstanding receivables by customer\n"
-        "- Monthly P&L comparison\n"
-        "- Cash flow status\n"
-        "- Vendor payment dues\n"
-        "- Collections vs billing\n"
-        "- DSO, DPO, DIO metrics\n"
-        "- Working capital cycle\n"
-        "- Aging analysis (0-30, 30-60, 60-90, 90+ days)\n"
-        "- Revenue run-rate and annualized projections\n"
-        "- Customer concentration risk"
-    )
-    profile.payment_terms = (
-        "Standard credit terms for established customers, "
-        "advance payment for new customers."
-    )
-    profile.financial_analysis_depth = "CFO-Level (full financial intelligence)"
+    if not profile.financial_year_start:
+        profile.financial_year_start = "April"
 
-    # Section 6: Terminology & Language
-    profile.custom_terminology = (
-        "TMR = Total Mixed Ration (complete balanced feed for ruminants)\n"
-        "Silage = Fermented high-moisture stored fodder\n"
-        "Bunker = Underground/above-ground storage for silage (mapped to Warehouse)\n"
-        "Roughage = Fibrous feed ingredients (paddy straw, dry fodder)\n"
-        "Concentrate = High-protein feed supplement\n"
-        "FGIPL = Fertile Green Industries Private Limited (manufacturing entity)\n"
-        "TMF = Truemeal Feeds Private Limited (sales entity)\n"
-        "SO = Sales Order\n"
-        "SI = Sales Invoice\n"
-        "DN = Delivery Note\n"
-        "PE = Payment Entry\n"
-        "PO = Purchase Order\n"
-        "PI = Purchase Invoice\n"
-        "PR = Purchase Receipt\n"
-        "WO = Work Order\n"
-        "SE = Stock Entry\n"
-        "GRN = Goods Receipt Note\n"
-        "DSO = Days Sales Outstanding\n"
-        "DPO = Days Payable Outstanding\n"
-        "DIO = Days Inventory Outstanding\n"
-        "SMLY = Same Month Last Year\n"
-        "MTD = Month To Date\n"
-        "YTD = Year To Date\n"
-        "QTD = Quarter To Date"
-    )
-    profile.communication_style = "Professional"
-    profile.primary_language = "English"
+    if not profile.communication_style:
+        profile.communication_style = "Professional"
 
-    # Section 7: AI Behavior Preferences
-    profile.response_length = "Detailed (full analysis with tables)"
-    profile.number_format = "Indian (Lakhs, Crores)"
-    profile.executive_focus = (
-        "- Revenue vs target\n"
-        "- Cash position and collections\n"
-        "- Overdue receivables\n"
-        "- Working capital cycle\n"
-        "- Production output\n"
-        "- Low stock items\n"
-        "- Customer concentration risk\n"
-        "- Growth metrics (YoY, MoM, SMLY)"
-    )
-    profile.restricted_data = (
-        "- Individual employee salaries (unless user has HR Manager role)\n"
-        "- Customer-specific pricing discounts\n"
-        "- Internal margin percentages (unless user is Executive/System Manager)"
-    )
+    if not profile.primary_language:
+        profile.primary_language = "English"
 
-    # AI Personality
-    profile.ai_personality = (
-        "Professional but warm. Trusted senior executive, not a cold database. "
-        "Use 'we' and 'our'. Be decisive — don't hedge. Be proactive — if the "
-        "data shows something important, say it. Be concise — business users want "
-        "insights, not essays. Use industry language (TMR, silage, bunkers). "
-        "Think ahead — anticipate what the user might ask next. Challenge "
-        "assumptions — if data contradicts what the user assumes, respectfully "
-        "point it out. Recommend actions — don't just report numbers."
-    )
-    profile.example_voice = (
-        "Our collections this month are 38.4 L against 52.1 L in sales — "
-        "that's a 73.7% collection rate, down from 81.2% last month. DSO has "
-        "crept up to 47 days. I'd recommend focusing on the top 5 overdue "
-        "accounts — they hold 18.2 L (47% of outstanding). Want me to pull "
-        "up the aging breakdown?"
-    )
+    if not profile.response_length:
+        profile.response_length = "Concise"
 
-    # Custom Doctypes
-    profile.custom_doctypes_info = json.dumps({
-        "Consultant": "consultant_name, mobile, territory, commission_rate. Creates Sales Partner + Supplier automatically (hybrid model).",
-        "TM Gate Pass": "delivery_note, driver, vehicle, gross_weight, tare_weight, net_weight.",
-        "TM Expense Entry": "expense_type, expense_date, amount, party_type, party, paid_from, journal_entry, payment_status, outstanding_amount.",
-        "TM Incentive Scheme": "Incentive tracking for sales force.",
-        "TM Incentive Ledger": "Incentive ledger entries.",
-    })
+    if not profile.number_format:
+        # Default based on currency
+        currency = profile.currency or "INR"
+        if currency == "INR":
+            profile.number_format = "Indian (Lakhs, Crores)"
+        else:
+            profile.number_format = "International (Thousands, Millions)"
 
-    # Industry Benchmarks
-    profile.industry_benchmarks = json.dumps({
-        "Typical gross margin": "15-25% for TMR manufacturers",
-        "Typical DSO": "30-45 days for feed industry",
-        "Revenue growth": "8-15% YoY for mid-size manufacturers",
-        "Working capital cycle": "45-75 days is normal",
-    })
+    if not profile.ai_personality:
+        profile.ai_personality = (
+            "Professional but warm. Trusted senior executive, not a cold database. "
+            "Use 'we' and 'our'. Be decisive — don't hedge. Be proactive — if the "
+            "data shows something important, say it. Be concise — business users want "
+            "insights, not essays. Think ahead — anticipate what the user might ask "
+            "next. Challenge assumptions — if data contradicts what the user assumes, "
+            "respectfully point it out. Recommend actions — don't just report numbers."
+        )
+
+    if not profile.example_voice:
+        profile.example_voice = (
+            "Our collections this month are 38.4 L against 52.1 L in billing — "
+            "that's a 73.7% collection rate, down from 81.2% last month. DSO has "
+            "crept up to 47 days. I'd recommend focusing on the top 5 overdue "
+            "accounts — they hold 42% of outstanding. Want me to pull up the aging "
+            "breakdown?"
+        )
+
+    if not profile.restricted_data:
+        profile.restricted_data = (
+            "- Individual employee salaries (unless user has HR Manager role)\n"
+            "- Customer-specific pricing discounts\n"
+            "- Internal margin percentages (unless user is Executive/System Manager)"
+        )
+
+    # ─── Standard ERP terminology (universal) ─────────────────────────────
+    if not profile.custom_terminology:
+        profile.custom_terminology = (
+            "SO = Sales Order\n"
+            "SI = Sales Invoice\n"
+            "DN = Delivery Note\n"
+            "PE = Payment Entry\n"
+            "PO = Purchase Order\n"
+            "PI = Purchase Invoice\n"
+            "PR = Purchase Receipt\n"
+            "WO = Work Order\n"
+            "SE = Stock Entry\n"
+            "GRN = Goods Receipt Note\n"
+            "BOM = Bill of Materials\n"
+            "DSO = Days Sales Outstanding\n"
+            "DPO = Days Payable Outstanding\n"
+            "DIO = Days Inventory Outstanding\n"
+            "MTD = Month To Date\n"
+            "YTD = Year To Date\n"
+            "QTD = Quarter To Date\n"
+            "SMLY = Same Month Last Year"
+        )
 
     profile.save(ignore_permissions=True)
-    print("  AskERP Business Profile pre-filled with FGIPL data.")
+    print("  AskERP Business Profile created with defaults. Complete setup via AskERP Setup Wizard.")
 
 
 def _create_default_prompt_templates():

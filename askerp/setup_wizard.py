@@ -253,6 +253,23 @@ def complete_setup():
     frappe.db.set_value("User", frappe.session.user, "allow_ai_chat", 1, update_modified=False)
 
     frappe.db.commit()
+
+    # Trigger auto business context discovery in background
+    # This scans ERPNext schema and populates the Business Profile with
+    # intelligent context (industry details, products, sales channels, etc.)
+    try:
+        frappe.enqueue(
+            "askerp.context_discovery.run_context_discovery",
+            overwrite=False,  # Don't overwrite fields the admin already filled in wizard
+            queue="long",
+            timeout=300,  # 5 minutes max
+            now=False,
+        )
+        frappe.logger("askerp").info("Auto context discovery enqueued after setup completion")
+    except Exception:
+        # Non-critical — setup still succeeds even if discovery fails to enqueue
+        frappe.log_error(title="AskERP: Context discovery enqueue failed")
+
     return {"success": True}
 
 

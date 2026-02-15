@@ -5,7 +5,7 @@ Generates 3-4 context-aware suggestion chips for the chat UI.
 No LLM calls — pure Python logic based on time, day, month, roles, and business profile.
 
 v2.0 Changes (Phase 2 — Commercialization):
-- All FGIPL-specific suggestions removed (no bunker, silage, DSO references)
+- All company-specific suggestions removed
 - Suggestions now generated dynamically from AskERP Business Profile
 - Industry-aware: manufacturing gets production suggestions, trading gets margin suggestions
 - Terminology-aware: uses company's own terms in suggestion text
@@ -19,6 +19,7 @@ Returns tappable chip labels that the user can tap to auto-fill a question.
 import frappe
 import random
 import json
+from askerp.formatting import get_role_sets
 
 
 # ─── Universal Suggestion Templates (industry-agnostic) ─────────────────────
@@ -254,7 +255,7 @@ def _build_metric_suggestions(profile):
 def _build_terminology_suggestions(profile):
     """
     Build suggestions using company-specific terminology.
-    E.g., if a company has 'Bunker' = warehouse type, show bunker-related suggestions.
+    E.g., if a company has custom warehouse types, show related suggestions.
     """
     suggestions = []
     terms_text = profile.get("custom_terminology", "")
@@ -400,17 +401,23 @@ def _get_role_suggestions(user):
     suggestions = []
     random.seed(frappe.utils.today())  # Same role suggestions per day
 
-    # Executive / System Manager
-    if roles.intersection({"System Manager", "Administrator"}):
+    # Get dynamic role sets from AskERP Settings
+    role_sets = get_role_sets()
+    exec_roles = role_sets["executive"]
+    mgmt_roles = role_sets["management"]
+
+    # Executive / System Manager (from Settings)
+    if roles.intersection(exec_roles):
         s = random.choice(_EXECUTIVE_TEMPLATES)
         suggestions.append({"label": s, "query": s})
 
-    # Sales roles
-    if roles.intersection({"Sales Manager", "Sales User", "Sales Master Manager"}):
-        s = random.choice(_SALES_TEMPLATES)
-        suggestions.append({"label": s, "query": s})
+    # Sales roles (always includes standard ERPNext sales roles)
+    if roles.intersection({"Sales Manager", "Sales User", "Sales Master Manager"} | mgmt_roles):
+        if roles.intersection({"Sales Manager", "Sales User", "Sales Master Manager"}):
+            s = random.choice(_SALES_TEMPLATES)
+            suggestions.append({"label": s, "query": s})
 
-    # Finance roles
+    # Finance roles (always includes standard ERPNext accounts roles)
     if roles.intersection({"Accounts Manager", "Accounts User"}):
         s = random.choice(_FINANCE_TEMPLATES)
         suggestions.append({"label": s, "query": s})

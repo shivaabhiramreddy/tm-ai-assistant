@@ -1,6 +1,6 @@
 """
-AskERP — Demo Mode v1.0
-==================================
+AskERP — Demo Mode v2.0 (Generic / Marketplace-Ready)
+===========================================================
 Provides pre-recorded responses when no AI provider API key is configured.
 Lets users explore the chat interface, understand response formatting, and
 experience the product before entering a real API key.
@@ -8,6 +8,12 @@ experience the product before entering a real API key.
 Demo mode activates automatically when:
   1. No AskERP Model has an API key configured, OR
   2. The admin explicitly enables demo_mode in AskERP Settings
+
+v2.0 Changes (Phase 4 — Marketplace):
+- All company-specific demo data removed
+- Demo responses now use generic business data applicable to ANY ERPNext user
+- Currency uses ₹ by default (configurable if profile exists)
+- Industry-neutral: works for manufacturing, trading, services, retail
 
 Demo responses cover common business questions and showcase features like:
   - Financial summaries with Indian formatting
@@ -72,7 +78,7 @@ _DEMO_RESPONSES = [
             "| Orders | 23 |\n"
             "| Avg Order Value | ₹3,622 |\n\n"
             "Sales are tracking 12% above yesterday (₹7.44 L). "
-            "Top performers: Nellore region (₹3.2 L) and Ongole territory (₹2.1 L).\n\n"
+            "Top performers: North region (₹3.2 L) and West territory (₹2.1 L).\n\n"
             "💡 *This is demo data. Connect an AI provider in AskERP Settings to query your real ERP data.*"
         ),
         "model": "demo-mode",
@@ -124,20 +130,19 @@ _DEMO_RESPONSES = [
     },
     {
         "patterns": [
-            r"inventory|stock|warehouse|bunker|silage",
-            r"low.*stock|out.*of.*stock|stock.*level",
+            r"inventory|stock|warehouse|low.*stock|out.*of.*stock|stock.*level",
         ],
         "response": (
             "**Inventory Snapshot** (Demo Data)\n\n"
-            "| Item | Warehouse | Qty (Kg) | Reorder Level |\n"
-            "|------|-----------|----------|---------------|\n"
-            "| Corn Silage | Bunker A | 45,000 | 20,000 |\n"
-            "| Sorghum Silage | Bunker B | 12,500 | 15,000 ⚠️ |\n"
-            "| TMR Premium Mix | Main Store | 8,200 | 5,000 |\n"
-            "| Paddy Straw | Dry Store | 3,800 | 10,000 ⚠️ |\n"
-            "| Concentrate | Main Store | 15,600 | 8,000 |\n\n"
-            "⚠️ **2 items below reorder level:** Sorghum Silage and Paddy Straw. "
-            "Sorghum Silage is at 83% of reorder — procurement should be initiated this week.\n\n"
+            "| Item | Warehouse | Qty | Reorder Level |\n"
+            "|------|-----------|-----|---------------|\n"
+            "| Product A | Main Store | 4,500 | 2,000 |\n"
+            "| Product B | Warehouse 1 | 1,250 | 1,500 ⚠️ |\n"
+            "| Product C | Main Store | 820 | 500 |\n"
+            "| Raw Material X | Raw Store | 380 | 1,000 ⚠️ |\n"
+            "| Component Y | Main Store | 1,560 | 800 |\n\n"
+            "⚠️ **2 items below reorder level:** Product B and Raw Material X. "
+            "Product B is at 83% of reorder — procurement should be initiated this week.\n\n"
             "💡 *This is demo data. Connect an AI provider to check your real inventory.*"
         ),
         "model": "demo-mode",
@@ -152,16 +157,16 @@ _DEMO_RESPONSES = [
             "**Top 10 Customers by Revenue — This Month** (Demo Data)\n\n"
             "| # | Customer | Revenue | Orders | Outstanding |\n"
             "|---|----------|---------|--------|-------------|\n"
-            "| 1 | Amul Dairy Coop | ₹18.5 L | 12 | ₹4.2 L |\n"
-            "| 2 | Milma Federation | ₹15.2 L | 8 | ₹6.8 L |\n"
-            "| 3 | Krishna Dairy Farm | ₹12.8 L | 15 | ₹1.5 L |\n"
-            "| 4 | Nellore Cattle Assn | ₹9.4 L | 6 | ₹3.2 L |\n"
-            "| 5 | Ongole Feed Depot | ₹8.7 L | 9 | ₹0.8 L |\n"
-            "| 6 | Kavali Dairy | ₹7.1 L | 5 | ₹2.1 L |\n"
-            "| 7 | Gudur Feed Center | ₹6.3 L | 7 | ₹0.5 L |\n"
-            "| 8 | Prakasam Coop | ₹5.8 L | 4 | ₹4.5 L |\n"
-            "| 9 | AP Milk Union | ₹5.2 L | 3 | ₹1.8 L |\n"
-            "| 10 | Tirupati Feeds | ₹4.5 L | 6 | ₹0.3 L |\n\n"
+            "| 1 | Alpha Enterprises | ₹18.5 L | 12 | ₹4.2 L |\n"
+            "| 2 | Beta Industries | ₹15.2 L | 8 | ₹6.8 L |\n"
+            "| 3 | Gamma Corp | ₹12.8 L | 15 | ₹1.5 L |\n"
+            "| 4 | Delta Traders | ₹9.4 L | 6 | ₹3.2 L |\n"
+            "| 5 | Epsilon Supplies | ₹8.7 L | 9 | ₹0.8 L |\n"
+            "| 6 | Zeta Solutions | ₹7.1 L | 5 | ₹2.1 L |\n"
+            "| 7 | Eta Distributors | ₹6.3 L | 7 | ₹0.5 L |\n"
+            "| 8 | Theta Trading Co | ₹5.8 L | 4 | ₹4.5 L |\n"
+            "| 9 | Iota Associates | ₹5.2 L | 3 | ₹1.8 L |\n"
+            "| 10 | Kappa Agencies | ₹4.5 L | 6 | ₹0.3 L |\n\n"
             "Top 3 customers account for 51% of monthly revenue. Customer concentration risk is moderate.\n\n"
             "💡 *This is demo data. Connect an AI provider to see your real customer rankings.*"
         ),
@@ -179,9 +184,9 @@ _DEMO_RESPONSES = [
             "| Sales Orders | 5 | 2 days ago |\n"
             "| Sales Invoices | 3 | 1 day ago |\n"
             "| Purchase Receipts | 2 | Today |\n"
-            "| Payment Proposals | 1 | 3 days ago |\n"
+            "| Expense Claims | 1 | 3 days ago |\n"
             "| **Total** | **11** | |\n\n"
-            "The Payment Proposal has been pending for 3 days — you may want to review that first.\n\n"
+            "The Expense Claim has been pending for 3 days — you may want to review that first.\n\n"
             "💡 *This is demo data. Connect an AI provider to see your real pending approvals.*"
         ),
         "model": "demo-mode",
@@ -200,8 +205,8 @@ _DEMO_RESPONSES = [
             "| Payables Outstanding | ₹62.3 L |\n"
             "| DPO | 38 days |\n"
             "| Active Suppliers | 45 |\n\n"
-            "Top 3 suppliers by spend: Maize Procurement (₹42 L), "
-            "Transport Services (₹18 L), Packaging Materials (₹12 L).\n\n"
+            "Top 3 suppliers by spend: Primary Raw Material (₹42 L), "
+            "Logistics & Transport (₹18 L), Packaging Materials (₹12 L).\n\n"
             "💡 *This is demo data. Connect an AI provider to analyze your real purchase data.*"
         ),
         "model": "demo-mode",

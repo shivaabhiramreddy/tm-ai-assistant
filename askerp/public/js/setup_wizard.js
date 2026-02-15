@@ -335,7 +335,7 @@
 
     // Step label and title
     const stepInfo = getStepInfo(currentStep);
-    html += '<div class="askerp-wizard-step-label">Step ' + currentStep + " of " + totalSteps + "</div>";
+    html += '<div class="askerp-wizard-step-label">' + __("Step {0} of {1}", [currentStep, totalSteps]) + "</div>";
     html += '<div class="askerp-wizard-title">' + stepInfo.title + "</div>";
     html += '<div class="askerp-wizard-subtitle">' + stepInfo.subtitle + "</div>";
     html += "</div>";
@@ -359,23 +359,23 @@
   function getStepInfo(step) {
     switch (step) {
       case 1: return {
-        title: "Welcome to AI Assistant",
-        subtitle: "In the next 5 minutes, you'll set up an AI that understands your business and can answer questions about your ERP data."
+        title: __("Welcome to AI Assistant"),
+        subtitle: __("In the next 5 minutes, you'll set up an AI that understands your business and can answer questions about your ERP data.")
       };
       case 2: return {
-        title: "Connect AI Provider",
-        subtitle: "Choose your AI service and enter your API key. We'll test the connection in real-time."
+        title: __("Connect AI Provider"),
+        subtitle: __("Choose your AI service and enter your API key. We'll test the connection in real-time.")
       };
       case 3: return {
-        title: "Tell Us About Your Business",
-        subtitle: "Help the AI understand your company so it gives relevant, accurate answers."
+        title: __("Tell Us About Your Business"),
+        subtitle: __("Help the AI understand your company so it gives relevant, accurate answers.")
       };
       case 4: return {
-        title: "Enable Users",
-        subtitle: "Select which users should have access to the AI chat assistant."
+        title: __("Enable Users"),
+        subtitle: __("Select which users should have access to the AI chat assistant.")
       };
       case 5: return {
-        title: "You're All Set!",
+        title: __("You're All Set!"),
         subtitle: ""
       };
       default: return { title: "", subtitle: "" };
@@ -401,23 +401,23 @@
       '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin: 10px 0;">' +
         '<div style="background: #f0faf1; border-radius: 10px; padding: 16px;">' +
           '<div style="font-size: 24px; margin-bottom: 8px;">💬</div>' +
-          '<div style="font-weight: 600; color: #333; margin-bottom: 4px;">Chat with Your Data</div>' +
-          '<div style="font-size: 13px; color: #666;">Ask questions in plain English about sales, inventory, finances — any ERP data.</div>' +
+          '<div style="font-weight: 600; color: #333; margin-bottom: 4px;">' + __("Chat with Your Data") + '</div>' +
+          '<div style="font-size: 13px; color: #666;">' + __("Ask questions in plain English about sales, inventory, finances — any ERP data.") + '</div>' +
         '</div>' +
         '<div style="background: #f0f4ff; border-radius: 10px; padding: 16px;">' +
           '<div style="font-size: 24px; margin-bottom: 8px;">📊</div>' +
-          '<div style="font-weight: 600; color: #333; margin-bottom: 4px;">Instant Analysis</div>' +
-          '<div style="font-size: 13px; color: #666;">Get financial summaries, trend comparisons, and export reports to PDF or Excel.</div>' +
+          '<div style="font-weight: 600; color: #333; margin-bottom: 4px;">' + __("Instant Analysis") + '</div>' +
+          '<div style="font-size: 13px; color: #666;">' + __("Get financial summaries, trend comparisons, and export reports to PDF or Excel.") + '</div>' +
         '</div>' +
         '<div style="background: #fff8f0; border-radius: 10px; padding: 16px;">' +
           '<div style="font-size: 24px; margin-bottom: 8px;">🔔</div>' +
-          '<div style="font-weight: 600; color: #333; margin-bottom: 4px;">Smart Alerts</div>' +
-          '<div style="font-size: 13px; color: #666;">Set alerts for business thresholds — get notified when metrics cross limits.</div>' +
+          '<div style="font-weight: 600; color: #333; margin-bottom: 4px;">' + __("Smart Alerts") + '</div>' +
+          '<div style="font-size: 13px; color: #666;">' + __("Set alerts for business thresholds — get notified when metrics cross limits.") + '</div>' +
         '</div>' +
         '<div style="background: #f8f0ff; border-radius: 10px; padding: 16px;">' +
           '<div style="font-size: 24px; margin-bottom: 8px;">🛡️</div>' +
-          '<div style="font-weight: 600; color: #333; margin-bottom: 4px;">Safe & Secure</div>' +
-          '<div style="font-size: 13px; color: #666;">Read-only by default. Role-based access. Your data stays in your ERPNext.</div>' +
+          '<div style="font-weight: 600; color: #333; margin-bottom: 4px;">' + __("Safe & Secure") + '</div>' +
+          '<div style="font-size: 13px; color: #666;">' + __("Read-only by default. Role-based access. Your data stays in your ERPNext.") + '</div>' +
         '</div>' +
       '</div>';
   }
@@ -427,31 +427,31 @@
       '<div class="askerp-wizard-providers">' +
         '<div class="askerp-wizard-provider-card' + (selectedProvider === "Anthropic" ? " selected" : "") + '" data-provider="Anthropic">' +
           '<div class="askerp-wizard-provider-icon">🟤</div>' +
-          '<div class="askerp-wizard-provider-name">Anthropic (Claude)</div>' +
-          '<div class="askerp-wizard-provider-tag">Recommended</div>' +
+          '<div class="askerp-wizard-provider-name">' + __("Anthropic (Claude)") + '</div>' +
+          '<div class="askerp-wizard-provider-tag">' + __("Recommended") + '</div>' +
         '</div>' +
         '<div class="askerp-wizard-provider-card' + (selectedProvider === "Google" ? " selected" : "") + '" data-provider="Google">' +
           '<div class="askerp-wizard-provider-icon">🔵</div>' +
-          '<div class="askerp-wizard-provider-name">Google (Gemini)</div>' +
-          '<div class="askerp-wizard-provider-tag">Budget-friendly</div>' +
+          '<div class="askerp-wizard-provider-name">' + __("Google (Gemini)") + '</div>' +
+          '<div class="askerp-wizard-provider-tag">' + __("Budget-friendly") + '</div>' +
         '</div>' +
         '<div class="askerp-wizard-provider-card' + (selectedProvider === "OpenAI" ? " selected" : "") + '" data-provider="OpenAI">' +
           '<div class="askerp-wizard-provider-icon">🟢</div>' +
-          '<div class="askerp-wizard-provider-name">OpenAI (GPT)</div>' +
-          '<div class="askerp-wizard-provider-tag">Popular</div>' +
+          '<div class="askerp-wizard-provider-name">' + __("OpenAI (GPT)") + '</div>' +
+          '<div class="askerp-wizard-provider-tag">' + __("Popular") + '</div>' +
         '</div>' +
       '</div>' +
       '<div class="askerp-wizard-api-section' + (selectedProvider ? " visible" : "") + '" id="askerp-wizard-api-section">' +
-        '<div class="askerp-wizard-label">API Key <span class="required">*</span></div>' +
+        '<div class="askerp-wizard-label">' + __("API Key") + ' <span class="required">*</span></div>' +
         '<div class="askerp-wizard-input-group">' +
           '<input type="password" class="askerp-wizard-input" id="askerp-wizard-api-key" ' +
-            'placeholder="Enter your ' + (selectedProvider || "provider") + ' API key..." ' +
+            'placeholder="' + __("Enter your {0} API key...", [selectedProvider || __("provider")]) + '" ' +
             'value="' + _escHtml(validatedApiKey) + '">' +
-          '<button class="askerp-wizard-test-btn" id="askerp-wizard-test-btn">Test Connection</button>' +
+          '<button class="askerp-wizard-test-btn" id="askerp-wizard-test-btn">' + __("Test Connection") + '</button>' +
         '</div>' +
         '<div class="askerp-wizard-test-result" id="askerp-wizard-test-result"></div>' +
         '<div class="askerp-wizard-hint" style="margin-top: 8px;">' +
-          'Don\'t have an API key? Visit your provider\'s dashboard to create one.' +
+          __("Don't have an API key? Visit your provider's dashboard to create one.") +
         '</div>' +
       '</div>';
   }
@@ -467,45 +467,45 @@
 
     return '' +
       '<div class="askerp-wizard-field">' +
-        '<label class="askerp-wizard-label">Company Name <span class="required">*</span></label>' +
+        '<label class="askerp-wizard-label">' + __("Company Name") + ' <span class="required">*</span></label>' +
         '<input type="text" class="askerp-wizard-input" id="askerp-wizard-company" ' +
-          'placeholder="Your company name" value="' + _escHtml(defaultCompany) + '">' +
+          'placeholder="' + __("Your company name") + '" value="' + _escHtml(defaultCompany) + '">' +
       '</div>' +
       '<div class="askerp-wizard-field">' +
-        '<label class="askerp-wizard-label">Industry</label>' +
+        '<label class="askerp-wizard-label">' + __("Industry") + '</label>' +
         '<select class="askerp-wizard-select" id="askerp-wizard-industry">' +
-          '<option value="">Select your industry...</option>' +
-          '<option value="Manufacturing">Manufacturing</option>' +
-          '<option value="Trading">Trading / Distribution</option>' +
-          '<option value="Retail">Retail</option>' +
-          '<option value="Services">Services</option>' +
-          '<option value="Healthcare">Healthcare</option>' +
-          '<option value="Education">Education</option>' +
-          '<option value="Agriculture">Agriculture</option>' +
-          '<option value="Construction">Construction / Real Estate</option>' +
-          '<option value="Technology">Technology / IT</option>' +
-          '<option value="Food & Beverage">Food & Beverage</option>' +
-          '<option value="Hospitality">Hospitality</option>' +
-          '<option value="Non-Profit">Non-Profit</option>' +
-          '<option value="Other">Other</option>' +
+          '<option value="">' + __("Select your industry...") + '</option>' +
+          '<option value="Manufacturing">' + __("Manufacturing") + '</option>' +
+          '<option value="Trading">' + __("Trading / Distribution") + '</option>' +
+          '<option value="Retail">' + __("Retail") + '</option>' +
+          '<option value="Services">' + __("Services") + '</option>' +
+          '<option value="Healthcare">' + __("Healthcare") + '</option>' +
+          '<option value="Education">' + __("Education") + '</option>' +
+          '<option value="Agriculture">' + __("Agriculture") + '</option>' +
+          '<option value="Construction">' + __("Construction / Real Estate") + '</option>' +
+          '<option value="Technology">' + __("Technology / IT") + '</option>' +
+          '<option value="Food & Beverage">' + __("Food & Beverage") + '</option>' +
+          '<option value="Hospitality">' + __("Hospitality") + '</option>' +
+          '<option value="Non-Profit">' + __("Non-Profit") + '</option>' +
+          '<option value="Other">' + __("Other") + '</option>' +
         '</select>' +
       '</div>' +
       '<div class="askerp-wizard-field">' +
-        '<label class="askerp-wizard-label">What does your company do?</label>' +
+        '<label class="askerp-wizard-label">' + __("What does your company do?") + '</label>' +
         '<textarea class="askerp-wizard-textarea" id="askerp-wizard-description" ' +
-          'placeholder="Describe your company in 1-2 sentences. For example: We manufacture electronic components and sell through a dealer network across South India."></textarea>' +
-        '<div class="askerp-wizard-hint">This helps the AI understand your business context. You can add more details later.</div>' +
+          'placeholder="' + __("Describe your company in 1-2 sentences. For example: We manufacture electronic components and sell through a dealer network.") + '"></textarea>' +
+        '<div class="askerp-wizard-hint">' + __("This helps the AI understand your business context. You can add more details later.") + '</div>' +
       '</div>';
   }
 
   function getStep4Content() {
     return '' +
       '<div class="askerp-wizard-user-controls">' +
-        '<input type="text" class="askerp-wizard-user-search" id="askerp-wizard-user-search" placeholder="Search users...">' +
-        '<button class="askerp-wizard-select-all" id="askerp-wizard-select-all">Select All</button>' +
+        '<input type="text" class="askerp-wizard-user-search" id="askerp-wizard-user-search" placeholder="' + __("Search users...") + '">' +
+        '<button class="askerp-wizard-select-all" id="askerp-wizard-select-all">' + __("Select All") + '</button>' +
       '</div>' +
       '<div class="askerp-wizard-user-list" id="askerp-wizard-user-list">' +
-        '<div style="padding: 20px; text-align: center; color: #999;">Loading users...</div>' +
+        '<div style="padding: 20px; text-align: center; color: #999;">' + __("Loading users...") + '</div>' +
       '</div>' +
       '<div class="askerp-wizard-user-count" id="askerp-wizard-user-count" style="margin-top: 8px;"></div>';
   }
@@ -514,10 +514,10 @@
     return '' +
       '<div class="askerp-wizard-done">' +
         '<div class="askerp-wizard-done-icon">✅</div>' +
-        '<h2>Your AI Assistant is Ready!</h2>' +
-        '<p>Look for the chat bubble in the bottom-right corner of any ERPNext page. Click it to start chatting with your data.</p>' +
+        '<h2>' + __("Your AI Assistant is Ready!") + '</h2>' +
+        '<p>' + __("Look for the chat bubble in the bottom-right corner of any ERPNext page. Click it to start chatting with your data.") + '</p>' +
         '<div class="askerp-wizard-try-prompt">' +
-          '💡 <strong>Try asking:</strong> "What are my pending approvals?" or "Show me this month\'s revenue"' +
+          '💡 <strong>' + __("Try asking:") + '</strong> "' + __("What are my pending approvals?") + '" ' + __("or") + ' "' + __("Show me this month's revenue") + '"' +
         '</div>' +
       '</div>';
   }
@@ -529,32 +529,32 @@
     switch (step) {
       case 1:
         return '' +
-          '<button class="askerp-wizard-btn askerp-wizard-btn-skip" onclick="window._askerpWizardDismiss()">Set up later</button>' +
-          '<button class="askerp-wizard-btn askerp-wizard-btn-primary" onclick="window._askerpWizardNext()">Get Started →</button>';
+          '<button class="askerp-wizard-btn askerp-wizard-btn-skip" onclick="window._askerpWizardDismiss()">' + __("Set up later") + '</button>' +
+          '<button class="askerp-wizard-btn askerp-wizard-btn-primary" onclick="window._askerpWizardNext()">' + __("Get Started") + ' →</button>';
       case 2:
         return '' +
-          '<button class="askerp-wizard-btn askerp-wizard-btn-secondary" onclick="window._askerpWizardPrev()">← Back</button>' +
+          '<button class="askerp-wizard-btn askerp-wizard-btn-secondary" onclick="window._askerpWizardPrev()">← ' + __("Back") + '</button>' +
           '<div>' +
-            '<button class="askerp-wizard-btn askerp-wizard-btn-skip" onclick="window._askerpWizardSkipStep()">Skip for now</button>' +
+            '<button class="askerp-wizard-btn askerp-wizard-btn-skip" onclick="window._askerpWizardSkipStep()">' + __("Skip for now") + '</button>' +
             '<button class="askerp-wizard-btn askerp-wizard-btn-primary" id="askerp-wizard-step2-next" ' +
               (validatedApiKey ? "" : "disabled") +
-              ' onclick="window._askerpWizardSaveApiKey()">Save & Continue →</button>' +
+              ' onclick="window._askerpWizardSaveApiKey()">' + __("Save & Continue") + ' →</button>' +
           '</div>';
       case 3:
         return '' +
-          '<button class="askerp-wizard-btn askerp-wizard-btn-secondary" onclick="window._askerpWizardPrev()">← Back</button>' +
+          '<button class="askerp-wizard-btn askerp-wizard-btn-secondary" onclick="window._askerpWizardPrev()">← ' + __("Back") + '</button>' +
           '<div>' +
-            '<button class="askerp-wizard-btn askerp-wizard-btn-skip" onclick="window._askerpWizardSkipStep()">Skip for now</button>' +
-            '<button class="askerp-wizard-btn askerp-wizard-btn-primary" onclick="window._askerpWizardSaveProfile()">Save & Continue →</button>' +
+            '<button class="askerp-wizard-btn askerp-wizard-btn-skip" onclick="window._askerpWizardSkipStep()">' + __("Skip for now") + '</button>' +
+            '<button class="askerp-wizard-btn askerp-wizard-btn-primary" onclick="window._askerpWizardSaveProfile()">' + __("Save & Continue") + ' →</button>' +
           '</div>';
       case 4:
         return '' +
-          '<button class="askerp-wizard-btn askerp-wizard-btn-secondary" onclick="window._askerpWizardPrev()">← Back</button>' +
-          '<button class="askerp-wizard-btn askerp-wizard-btn-primary" onclick="window._askerpWizardSaveUsers()">Enable & Continue →</button>';
+          '<button class="askerp-wizard-btn askerp-wizard-btn-secondary" onclick="window._askerpWizardPrev()">← ' + __("Back") + '</button>' +
+          '<button class="askerp-wizard-btn askerp-wizard-btn-primary" onclick="window._askerpWizardSaveUsers()">' + __("Enable & Continue") + ' →</button>';
       case 5:
         return '' +
           '<div></div>' +
-          '<button class="askerp-wizard-btn askerp-wizard-btn-primary" onclick="window._askerpWizardFinish()" style="padding: 12px 32px; font-size: 15px;">Open AI Chat ✨</button>';
+          '<button class="askerp-wizard-btn askerp-wizard-btn-primary" onclick="window._askerpWizardFinish()" style="padding: 12px 32px; font-size: 15px;">' + __("Open AI Chat") + ' ✨</button>';
       default:
         return "";
     }
@@ -576,7 +576,7 @@
           if (apiSection) apiSection.classList.add("visible");
           var apiInput = document.getElementById("askerp-wizard-api-key");
           if (apiInput) {
-            apiInput.placeholder = "Enter your " + selectedProvider + " API key...";
+            apiInput.placeholder = __("Enter your {0} API key...", [selectedProvider]);
             apiInput.focus();
           }
         });
@@ -615,18 +615,18 @@
     var apiKey = (document.getElementById("askerp-wizard-api-key") || {}).value || "";
     apiKey = apiKey.trim();
     if (!apiKey) {
-      _showTestResult(false, "Please enter an API key.");
+      _showTestResult(false, __("Please enter an API key."));
       return;
     }
     if (!selectedProvider) {
-      _showTestResult(false, "Please select a provider first.");
+      _showTestResult(false, __("Please select a provider first."));
       return;
     }
 
     var testBtn = document.getElementById("askerp-wizard-test-btn");
     if (testBtn) {
       testBtn.classList.add("testing");
-      testBtn.textContent = "Testing...";
+      testBtn.textContent = __("Testing...");
       testBtn.disabled = true;
     }
 
@@ -637,7 +637,7 @@
       callback: function (r) {
         if (testBtn) {
           testBtn.classList.remove("testing");
-          testBtn.textContent = "Test Connection";
+          testBtn.textContent = __("Test Connection");
           testBtn.disabled = false;
         }
 
@@ -649,16 +649,16 @@
             if (nextBtn) nextBtn.disabled = false;
           }
         } else {
-          _showTestResult(false, "No response from server.");
+          _showTestResult(false, __("No response from server."));
         }
       },
       error: function () {
         if (testBtn) {
           testBtn.classList.remove("testing");
-          testBtn.textContent = "Test Connection";
+          testBtn.textContent = __("Test Connection");
           testBtn.disabled = false;
         }
-        _showTestResult(false, "Server error. Please try again.");
+        _showTestResult(false, __("Server error. Please try again."));
       }
     });
   }
@@ -684,12 +684,12 @@
           _renderUserList(userList);
         } else {
           var listDiv = document.getElementById("askerp-wizard-user-list");
-          if (listDiv) listDiv.innerHTML = '<div style="padding:20px; text-align:center; color:#999;">No users found.</div>';
+          if (listDiv) listDiv.innerHTML = '<div style="padding:20px; text-align:center; color:#999;">' + __("No users found.") + '</div>';
         }
       },
       error: function () {
         var listDiv = document.getElementById("askerp-wizard-user-list");
-        if (listDiv) listDiv.innerHTML = '<div style="padding:20px; text-align:center; color:#dc3545;">Failed to load users.</div>';
+        if (listDiv) listDiv.innerHTML = '<div style="padding:20px; text-align:center; color:#dc3545;">' + __("Failed to load users.") + '</div>';
       }
     });
   }
@@ -699,7 +699,7 @@
     if (!listDiv) return;
 
     if (!users || users.length === 0) {
-      listDiv.innerHTML = '<div style="padding:20px; text-align:center; color:#999;">No users found.</div>';
+      listDiv.innerHTML = '<div style="padding:20px; text-align:center; color:#999;">' + __("No users found.") + '</div>';
       return;
     }
 
@@ -756,7 +756,7 @@
     var allChecked = Array.from(checkboxes).every(function (cb) { return cb.checked; });
     checkboxes.forEach(function (cb) { cb.checked = !allChecked; });
     var btn = document.getElementById("askerp-wizard-select-all");
-    if (btn) btn.textContent = allChecked ? "Select All" : "Deselect All";
+    if (btn) btn.textContent = allChecked ? __("Select All") : __("Deselect All");
     _updateUserCount();
   }
 
@@ -766,7 +766,7 @@
     if (!listDiv || !countDiv) return;
     var checked = listDiv.querySelectorAll(".askerp-wizard-user-check:checked").length;
     var total = listDiv.querySelectorAll(".askerp-wizard-user-check").length;
-    countDiv.textContent = checked + " of " + total + " users selected for AI access";
+    countDiv.textContent = __("{0} of {1} users selected for AI access", [checked, total]);
   }
 
 
@@ -796,7 +796,7 @@
 
   window._askerpWizardSaveApiKey = function () {
     if (!selectedProvider || !validatedApiKey) {
-      frappe.show_alert({ message: "Please test your API key first.", indicator: "orange" });
+      frappe.show_alert({ message: __("Please test your API key first."), indicator: "orange" });
       return;
     }
 
@@ -807,17 +807,17 @@
       callback: function (r) {
         if (r && r.message && r.message.success) {
           frappe.show_alert({
-            message: r.message.models_updated + " model(s) configured!",
+            message: __("{0} model(s) configured!", [r.message.models_updated]),
             indicator: "green"
           });
           currentStep = 3;
           renderStep();
         } else {
-          frappe.show_alert({ message: "Failed to save API key.", indicator: "red" });
+          frappe.show_alert({ message: __("Failed to save API key."), indicator: "red" });
         }
       },
       error: function () {
-        frappe.show_alert({ message: "Server error. Please try again.", indicator: "red" });
+        frappe.show_alert({ message: __("Server error. Please try again."), indicator: "red" });
       }
     });
   };
@@ -828,7 +828,7 @@
     var desc = (document.getElementById("askerp-wizard-description") || {}).value || "";
 
     if (!company.trim()) {
-      frappe.show_alert({ message: "Company name is required.", indicator: "orange" });
+      frappe.show_alert({ message: __("Company name is required."), indicator: "orange" });
       return;
     }
 
@@ -842,13 +842,13 @@
       async: true,
       callback: function (r) {
         if (r && r.message && r.message.success) {
-          frappe.show_alert({ message: "Business profile saved!", indicator: "green" });
+          frappe.show_alert({ message: __("Business profile saved!"), indicator: "green" });
           currentStep = 4;
           renderStep();
         }
       },
       error: function () {
-        frappe.show_alert({ message: "Failed to save profile.", indicator: "red" });
+        frappe.show_alert({ message: __("Failed to save profile."), indicator: "red" });
       }
     });
   };
@@ -879,7 +879,7 @@
       callback: function (r) {
         if (r && r.message && r.message.success) {
           frappe.show_alert({
-            message: r.message.enabled_count + " user(s) enabled for AI chat!",
+            message: __("{0} user(s) enabled for AI chat!", [r.message.enabled_count]),
             indicator: "green"
           });
           currentStep = 5;
@@ -887,7 +887,7 @@
         }
       },
       error: function () {
-        frappe.show_alert({ message: "Failed to update users.", indicator: "red" });
+        frappe.show_alert({ message: __("Failed to update users."), indicator: "red" });
       }
     });
   };
@@ -899,7 +899,7 @@
       callback: function () {
         closeWizard();
         frappe.show_alert({
-          message: "AI Assistant is ready! Look for the chat bubble →",
+          message: __("AI Assistant is ready! Look for the chat bubble") + " →",
           indicator: "green"
         });
         // Trigger a page reload so chat widget initializes with the new state
@@ -920,8 +920,8 @@
     bar.className = "askerp-wizard-notification";
     bar.id = "askerp-wizard-notification";
     bar.innerHTML = '' +
-      '<span>🤖 AI Assistant setup is incomplete</span>' +
-      '<button class="askerp-wizard-notification-btn" id="askerp-wizard-notif-resume">Continue Setup</button>' +
+      '<span>🤖 ' + __("AI Assistant setup is incomplete") + '</span>' +
+      '<button class="askerp-wizard-notification-btn" id="askerp-wizard-notif-resume">' + __("Continue Setup") + '</button>' +
       '<button class="askerp-wizard-notification-dismiss" id="askerp-wizard-notif-dismiss">×</button>';
 
     document.body.appendChild(bar);
