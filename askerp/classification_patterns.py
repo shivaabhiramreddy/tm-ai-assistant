@@ -86,6 +86,22 @@ SIMPLE_PATTERNS = [
     # Price checks
     r"^(price|rate|cost)\s+(of|for)\b",
     r"^how\s+much\s+(is|does|for)\b",
+
+    # Alert CRUD operations (create/delete/list — single tool call, Sonnet handles fine)
+    r"(alert|notify|watch|monitor)\s+(me|us|when|if)\b",
+    r"(set\s+up|create|add)\s+.{0,15}\b(alert|monitor|watch)\b",
+    r"(delete|remove|cancel|disable|deactivate|turn\s+off)\s+.{0,40}\b(alert|monitor|watch|notification)\b",
+
+    # Rankings — single sorted query (Sonnet composes ORDER BY easily)
+    r"(top\s+\d+|bottom\s+\d+|highest|lowest)\b",
+    r"^(best|worst)\s+(selling|performing|paying|buying)\b",
+
+    # Receivables / payables / outstanding lookups (single-entity)
+    r"(kitna|kitne|kitni)\s+(baki|baaki|pending|due)\b",
+    r"\b(outstanding|receivable|payable|due|baki|balance)\b.{0,20}\b(of|for|from|hai|h)\b",
+
+    # Single-period revenue/sales/collection (no comparison)
+    r"^(this|last|current)\s+(month|week|quarter|year)('?s)?\s+(revenue|sales|collection|purchase|payment|invoice)s?\b",
 ]
 
 
@@ -120,20 +136,14 @@ COMPLEX_PATTERNS = [
     r"\b(dso|dpo|dio|working\s*capital|cash\s*flow|margin|ratio|profitab)\b",
     r"(receivab|payab|outstand|overdue|aging)\b.{0,20}\b(analysis|report|summary|trend)\b",
 
-    # Rankings and top/bottom
-    r"(top\s+\d+|bottom\s+\d+|best|worst|rank|highest|lowest)\b",
-
     # Hypotheticals and scenarios
     r"(if\s+we|what\s+if|what\s+would|scenario|simulat)\b",
 
-    # Alerts (creation/modification — more complex than listing)
-    r"(alert|notify|watch|monitor)\s+(me|us|when|if)\b",
-    r"(set\s+up|create|add)\s+.{0,15}\b(alert|monitor|watch)\b",
+    # Multi-period analysis (comparison across periods — NOT single-period lookups)
+    r"(this|last|previous|current)\s+(month|quarter|year|week|fy|financial\s*year)\b.{5,}\b(compar|vs|versus|against|differ|change)\b",
+    r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+(vs|versus|against|compared?\s+to)\b",
 
-    # Period-specific analysis
-    r"(this|last|previous|current)\s+(month|quarter|year|week|fy|financial\s*year)\b.*\b(revenue|sales|purchase|collect|payment)\b",
-
-    # Business pulse / dashboard requests
+    # Business pulse / dashboard requests (multi-metric deep analysis)
     r"(business\s+pulse|full\s+overview|executive\s+summary|business\s+health)\b",
     r"(pulse|snapshot|overview|summary)\s+(of|for)\s+(the\s+)?(business|company)\b",
 ]

@@ -40,13 +40,31 @@ _complex_re = [re.compile(p, re.IGNORECASE) for p in COMPLEX_PATTERNS]
 
 # ─── LLM Classification Prompt ──────────────────────────────────────────────
 
-_LLM_CLASSIFIER_PROMPT = """You are a query classifier for a business ERP system.
-Classify the user's message into exactly ONE category. Reply with ONLY the category name, nothing else.
+_LLM_CLASSIFIER_PROMPT = """You are a cost-optimizing query classifier for a business ERP system.
+Your goal: assign the CHEAPEST tier that can handle the query well. Never over-classify.
 
-Categories:
-- flash: Greetings, pleasantries, yes/no, thank you, acknowledgements, "help", "hi", small talk. No data needed.
-- simple: Single-fact lookups, counts, "how many", stock checks, price checks, "show today's X", status queries. Needs 1-2 quick lookups.
-- complex: Analysis, comparisons, trends, strategy, recommendations, reports, rankings, "top 10", financial metrics, period-over-period, forecasts, alerts setup. Needs deep reasoning or multiple data pulls.
+Classify into exactly ONE category. Reply with ONLY the category name.
+
+Categories (cheapest → most expensive):
+
+flash — Greetings, yes/no, thank you, acknowledgements, small talk. No data needed.
+  Examples: "hi", "good morning", "thanks", "ok", "namaskar", "bye"
+
+simple — Single lookups, counts, CRUD operations, rankings, alert management, single-period data.
+  A mid-range model with tool access can handle these easily.
+  Examples: "how many customers?", "top 5 customers by revenue", "create alert for low sales",
+  "delete my alert", "show today's orders", "stock of corn silage", "Malabar ka outstanding",
+  "this month's revenue", "list my alerts", "what's the price of TMR?"
+
+complex — Multi-step analysis requiring deep reasoning across multiple data sources.
+  ONLY use this when the query genuinely needs cross-referencing, comparisons across periods,
+  strategic recommendations, or synthesizing 3+ data points.
+  Examples: "compare Jan vs Feb revenue by customer group", "business pulse with all KPIs",
+  "why did revenue drop this quarter?", "what should we do about aging receivables?",
+  "forecast next month's sales based on trends"
+
+IMPORTANT: When in doubt, choose "simple" over "complex". Most business queries are simple lookups.
+Single actions (create, delete, update, show) are almost always "simple".
 
 Reply with exactly one word: flash, simple, or complex."""
 
