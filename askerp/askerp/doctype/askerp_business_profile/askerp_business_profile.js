@@ -26,6 +26,39 @@ frappe.ui.form.on("AskERP Business Profile", {
                 }
             });
         }, __("Actions"));
+
+        // Add "Refresh Business Context" button — triggers full schema discovery
+        if (frappe.user.has_role("System Manager")) {
+            frm.add_custom_button(__("Refresh Business Context"), function () {
+                frappe.confirm(
+                    __("This will scan your entire ERPNext database and rebuild the AI's understanding of your business schema. It runs in the background and takes 1-2 minutes. Proceed?"),
+                    function () {
+                        frappe.show_alert({
+                            message: __("Business context refresh queued. Check back in 1-2 minutes."),
+                            indicator: "blue"
+                        });
+                        frappe.call({
+                            method: "askerp.context_discovery.trigger_context_discovery",
+                            args: { overwrite: "0" },
+                            callback: function (r) {
+                                if (r && r.message && r.message.status === "queued") {
+                                    frappe.show_alert({
+                                        message: __("Discovery running in background. Reload this page in 1-2 minutes to see updated schema."),
+                                        indicator: "green"
+                                    });
+                                }
+                            },
+                            error: function () {
+                                frappe.show_alert({
+                                    message: __("Could not start context discovery. Check error log."),
+                                    indicator: "red"
+                                });
+                            }
+                        });
+                    }
+                );
+            }, __("Actions"));
+        }
     },
 
     after_save: function (frm) {
