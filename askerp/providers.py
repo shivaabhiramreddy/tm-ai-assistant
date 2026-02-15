@@ -55,6 +55,10 @@ def call_model(model_doc, messages, system_prompt, tools=None, stream=False):
         "Custom": _call_openai,  # Custom uses OpenAI-compatible format
     }
 
+    # Early exit if provider credits are known to be exhausted (cached 5 min)
+    if is_provider_credit_exhausted(provider):
+        return None
+
     handler = handlers.get(provider)
     if not handler:
         frappe.log_error(
@@ -146,6 +150,13 @@ def _call_anthropic(model_doc, messages, system_prompt, tools=None):
                     if resp.status_code == 200:
                         data = resp.json()
                         return _normalize_anthropic_response(data)
+
+            # Credit exhaustion — don't retry, trigger fallback chain
+            if resp.status_code == 400:
+                err_body = resp.text[:500].lower()
+                if "credit balance" in err_body or "insufficient" in err_body:
+                    _handle_credit_exhaustion("Anthropic", model_doc.model_id, resp.text[:300])
+                    return None  # Caller (process_chat) handles tier downgrade
 
             _log_api_error("Anthropic", model_doc.model_id, resp.status_code, resp.text[:500], attempt)
 
@@ -239,6 +250,13 @@ def _call_anthropic_stream(model_doc, messages, system_prompt, tools=None):
                 resp = requests.post(base_url, json=payload, headers=headers, timeout=180, stream=True)
                 if resp.status_code == 200:
                     return resp
+
+        # Credit exhaustion — notify admin
+        if resp.status_code == 400:
+            err_body = resp.text[:500].lower()
+            if "credit balance" in err_body or "insufficient" in err_body:
+                _handle_credit_exhaustion("Anthropic", model_doc.model_id, resp.text[:300])
+                return None
 
         _log_api_error("Anthropic Stream", model_doc.model_id, resp.status_code, resp.text[:500], 0)
         return None
@@ -851,6 +869,85 @@ def check_monthly_budget():
     return current_spend >= limit, current_spend, limit
 
 
+# ─── Credit Exhaustion Handling ────────────────────────────────────────────
+
+def is_provider_credit_exhausted(provider):
+    """Check if a provider's credits are known to be exhausted (cached for 5 min)."""
+    try:
+        return bool(frappe.cache.get_value(f"askerp:credit_exhausted:{provider}"))
+    except Exception:
+        return False
+
+
+def _handle_credit_exhaustion(provider, model_id, error_detail=""):
+    """
+    Handle credit exhaustion: log, cache the state (5 min), notify admin (1x/hr).
+    Called when an API returns a credit-related error.
+    """
+    # Cache for 5 minutes — skip further API calls to this provider
+    try:
+        frappe.cache.set_value(f"askerp:credit_exhausted:{provider}", "1", expires_in_sec=300)
+    except Exception:
+        pass
+
+    frappe.log_error(
+        title=f"AskERP: {provider} Credits Exhausted",
+        message=f"Model: {model_id}\nThe API credit balance is too low.\nDetail: {error_detail}"
+    )
+
+    # Notify admin (deduplicated — max once per hour)
+    _notify_admin_credit_depletion(provider)
+
+
+def _notify_admin_credit_depletion(provider):
+    """
+    Create Frappe Notification for admin users about credit depletion.
+    Deduplicated: max once per hour per provider to avoid spam.
+    """
+    cache_key = f"askerp:credit_notified:{provider}"
+    try:
+        if frappe.cache.get_value(cache_key):
+            return  # Already notified within the last hour
+        frappe.cache.set_value(cache_key, "1", expires_in_sec=3600)  # 1 hour
+    except Exception:
+        pass  # If cache fails, still try to notify
+
+    try:
+        # Find admin users (System Manager role)
+        admins = frappe.get_all(
+            "Has Role",
+            filters={"role": "System Manager", "parenttype": "User"},
+            fields=["parent"],
+            distinct=True,
+        )
+        admin_emails = [a.parent for a in admins if a.parent not in ("Administrator", "Guest")]
+        if not admin_emails:
+            admin_emails = ["Administrator"]
+
+        # Create Frappe Notification Log (shows in bell icon)
+        for admin in admin_emails[:5]:  # Limit to 5 admins
+            try:
+                frappe.get_doc({
+                    "doctype": "Notification Log",
+                    "for_user": admin,
+                    "type": "Alert",
+                    "document_type": "",
+                    "document_name": "",
+                    "subject": f"AskERP: {provider} API credits depleted",
+                    "email_content": (
+                        f"The {provider} API credits for AskERP have been exhausted. "
+                        f"AI assistant will be unavailable until credits are replenished. "
+                        f"Please add credits in the {provider} billing dashboard."
+                    ),
+                }).insert(ignore_permissions=True)
+            except Exception:
+                pass
+
+        frappe.db.commit()
+    except Exception as e:
+        frappe.log_error(title="AskERP: Credit Notification Error", message=str(e)[:300])
+
+
 # ─── Internal Helpers ────────────────────────────────────────────────────────
 
 def _make_error_response(status_code):
@@ -859,7 +956,7 @@ def _make_error_response(status_code):
         429: "I'm getting a lot of requests right now. Please wait a moment and try again.",
         401: "There's an issue with the AI service configuration. Please contact your admin.",
         403: "Access to the AI service was denied. Please contact your admin.",
-        400: "There was an issue with this request. Try asking a shorter question.",
+        400: "I had trouble processing that request. Could you try rephrasing your question?",
     }
     error_msg = messages.get(status_code, "I'm having trouble connecting to my AI service right now. Please try again shortly.")
 

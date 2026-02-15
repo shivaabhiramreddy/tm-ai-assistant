@@ -1638,6 +1638,7 @@ def process_chat(user, question, conversation_history=None, image_data=None):
     from .providers import (
         get_model_for_tier, get_settings, get_user_restricted_model,
         check_monthly_budget, call_model as provider_call, calculate_cost,
+        is_provider_credit_exhausted,
     )
 
     settings = get_settings()
@@ -1736,20 +1737,57 @@ def process_chat(user, question, conversation_history=None, image_data=None):
     for _round_num in range(max_rounds):
         response = provider_call(model_doc, messages, system_prompt, tools)
 
-        # If provider call failed entirely, try fallback model
+        # If provider call failed, try tier downgrade → fallback → graceful message
         if response is None:
-            fallback_doc = get_model_for_tier("fallback")
-            if fallback_doc and fallback_doc.name != model_doc.name:
-                frappe.logger("askerp").warning(
-                    f"Primary model {model_doc.model_id} failed, trying fallback {fallback_doc.model_id}"
-                )
-                model_doc = fallback_doc
-                tools = get_all_tools(user) if model_doc.supports_tools else None
-                response = provider_call(model_doc, messages, system_prompt, tools)
+            # Step A: Try downgrading tiers (tier_3 → tier_2 → tier_1)
+            downgrade_chain = []
+            if tier_used == "tier_3":
+                downgrade_chain = ["tier_2", "tier_1"]
+            elif tier_used == "tier_2":
+                downgrade_chain = ["tier_1"]
 
+            for dg_tier in downgrade_chain:
+                dg_doc = get_model_for_tier(dg_tier)
+                if dg_doc and dg_doc.name != model_doc.name:
+                    dg_provider = (dg_doc.provider or "").strip()
+                    if is_provider_credit_exhausted(dg_provider):
+                        continue  # Same provider, same credit issue — skip
+                    frappe.logger("askerp").warning(
+                        f"Downgrading from {model_doc.model_id} to {dg_doc.model_id} ({dg_tier})"
+                    )
+                    model_doc = dg_doc
+                    tier_used = dg_tier
+                    tools = get_all_tools(user) if model_doc.supports_tools else None
+                    response = provider_call(model_doc, messages, system_prompt, tools)
+                    if response is not None:
+                        break
+
+            # Step B: Try configured fallback model
             if response is None:
+                fb_doc = get_model_for_tier("fallback")
+                if fb_doc and fb_doc.name != model_doc.name:
+                    fb_provider = (fb_doc.provider or "").strip()
+                    if not is_provider_credit_exhausted(fb_provider):
+                        frappe.logger("askerp").warning(
+                            f"Trying fallback model {fb_doc.model_id}"
+                        )
+                        model_doc = fb_doc
+                        tools = get_all_tools(user) if model_doc.supports_tools else None
+                        response = provider_call(model_doc, messages, system_prompt, tools)
+
+            # Step C: All options exhausted — graceful message
+            if response is None:
+                any_credit_issue = any(
+                    is_provider_credit_exhausted(p)
+                    for p in ("Anthropic", "Google", "OpenAI", "Custom")
+                )
+                graceful_msg = (
+                    "I'm taking a short break to recharge. "
+                    "Your admin has been notified and I'll be back shortly."
+                ) if any_credit_issue else fallback_message
+
                 return {
-                    "response": fallback_message,
+                    "response": graceful_msg,
                     "tool_calls": tool_calls_made,
                     "model": model_doc.model_id,
                     "tier": tier_used,
@@ -2064,13 +2102,14 @@ def process_chat_stream(user, question, conversation_history=None, stream_id=Non
     Dynamic model selection mirrors process_chat:
       - Smart routing, user restrictions, budget checks
       - Anthropic models use SSE streaming, others fall back to sync call
-      - Fallback chain on failure
+      - Fallback chain on failure (tier downgrade → fallback → graceful message)
       - Cost tracking
     """
     from .business_context import get_system_prompt
     from .providers import (
         get_model_for_tier, get_settings, get_user_restricted_model,
         check_monthly_budget, call_model as provider_call, calculate_cost,
+        is_provider_credit_exhausted,
     )
 
     cache_key = f"askerp_stream:{stream_id}"
@@ -2172,15 +2211,42 @@ def process_chat_stream(user, question, conversation_history=None, stream_id=Non
                 )
 
                 if result is None:
-                    # Streaming failed — try fallback
-                    fallback_doc = get_model_for_tier("fallback")
-                    if fallback_doc and fallback_doc.name != model_doc.name:
-                        model_doc = fallback_doc
-                        use_streaming = (model_doc.provider == "Anthropic" and model_doc.supports_streaming)
-                        tools = get_all_tools(user) if model_doc.supports_tools else None
+                    # Streaming failed — try tier downgrade → fallback → graceful
+                    recovered = False
+                    downgrade_chain = []
+                    if tier_used == "tier_3":
+                        downgrade_chain = ["tier_2", "tier_1"]
+                    elif tier_used == "tier_2":
+                        downgrade_chain = ["tier_1"]
+                    for dg_tier in downgrade_chain:
+                        dg_doc = get_model_for_tier(dg_tier)
+                        if dg_doc and dg_doc.name != model_doc.name:
+                            dg_provider = (dg_doc.provider or "").strip()
+                            if is_provider_credit_exhausted(dg_provider):
+                                continue
+                            model_doc = dg_doc
+                            tier_used = dg_tier
+                            use_streaming = (model_doc.provider == "Anthropic" and model_doc.supports_streaming)
+                            tools = get_all_tools(user) if model_doc.supports_tools else None
+                            recovered = True
+                            break
+                    if not recovered:
+                        fb_doc = get_model_for_tier("fallback")
+                        if fb_doc and fb_doc.name != model_doc.name:
+                            fb_prov = (fb_doc.provider or "").strip()
+                            if not is_provider_credit_exhausted(fb_prov):
+                                model_doc = fb_doc
+                                use_streaming = (model_doc.provider == "Anthropic" and model_doc.supports_streaming)
+                                tools = get_all_tools(user) if model_doc.supports_tools else None
+                                recovered = True
+                    if recovered:
                         continue
-                    _update_stream_cache(cache_key, status="error", text=fallback_message, done=True)
-                    return {"response": fallback_message, "tool_calls": tool_calls_made,
+                    # All options exhausted
+                    any_credit = any(is_provider_credit_exhausted(p) for p in ("Anthropic", "Google", "OpenAI", "Custom"))
+                    msg = ("I'm taking a short break to recharge. "
+                           "Your admin has been notified and I'll be back shortly.") if any_credit else fallback_message
+                    _update_stream_cache(cache_key, status="error", text=msg, done=True)
+                    return {"response": msg, "tool_calls": tool_calls_made,
                             "model": model_doc.model_id, "tier": tier_used,
                             "cost": {"cost_input": 0, "cost_output": 0, "cost_total": 0},
                             "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0,
@@ -2200,13 +2266,38 @@ def process_chat_stream(user, question, conversation_history=None, stream_id=Non
                 response = provider_call(model_doc, messages, system_prompt, tools)
 
                 if response is None:
-                    fallback_doc = get_model_for_tier("fallback")
-                    if fallback_doc and fallback_doc.name != model_doc.name:
-                        model_doc = fallback_doc
-                        tools = get_all_tools(user) if model_doc.supports_tools else None
+                    # Non-streaming failed — try tier downgrade → fallback
+                    recovered = False
+                    dg_chain = []
+                    if tier_used == "tier_3":
+                        dg_chain = ["tier_2", "tier_1"]
+                    elif tier_used == "tier_2":
+                        dg_chain = ["tier_1"]
+                    for dg_tier in dg_chain:
+                        dg_doc = get_model_for_tier(dg_tier)
+                        if dg_doc and dg_doc.name != model_doc.name:
+                            dg_prov = (dg_doc.provider or "").strip()
+                            if is_provider_credit_exhausted(dg_prov):
+                                continue
+                            model_doc = dg_doc
+                            tools = get_all_tools(user) if model_doc.supports_tools else None
+                            recovered = True
+                            break
+                    if not recovered:
+                        fb_doc = get_model_for_tier("fallback")
+                        if fb_doc and fb_doc.name != model_doc.name:
+                            fb_prov = (fb_doc.provider or "").strip()
+                            if not is_provider_credit_exhausted(fb_prov):
+                                model_doc = fb_doc
+                                tools = get_all_tools(user) if model_doc.supports_tools else None
+                                recovered = True
+                    if recovered:
                         continue
-                    _update_stream_cache(cache_key, status="error", text=fallback_message, done=True)
-                    return {"response": fallback_message, "tool_calls": tool_calls_made,
+                    any_credit = any(is_provider_credit_exhausted(p) for p in ("Anthropic", "Google", "OpenAI", "Custom"))
+                    msg = ("I'm taking a short break to recharge. "
+                           "Your admin has been notified and I'll be back shortly.") if any_credit else fallback_message
+                    _update_stream_cache(cache_key, status="error", text=msg, done=True)
+                    return {"response": msg, "tool_calls": tool_calls_made,
                             "model": model_doc.model_id, "tier": tier_used,
                             "cost": {"cost_input": 0, "cost_output": 0, "cost_total": 0},
                             "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0,
