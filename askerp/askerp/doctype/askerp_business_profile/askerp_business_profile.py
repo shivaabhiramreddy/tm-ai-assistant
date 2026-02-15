@@ -51,6 +51,7 @@ class AskERPBusinessProfile(Document):
 
         return round((filled_fields / total_fields) * 100)
 
+    @frappe.whitelist()
     def get_section_status(self):
         """
         Return per-section completeness for the UI indicator.
