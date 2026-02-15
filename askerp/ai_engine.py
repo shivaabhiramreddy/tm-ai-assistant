@@ -39,78 +39,11 @@ _FALLBACK_TOKEN_BUDGETS = {
 }
 
 
-# ─── Smart Query Routing (Phase 5.2) ────────────────────────────────────────
-
-# Patterns that indicate a FLASH query (lowest cost, conversational)
-_FLASH_PATTERNS = [
-    r"^(hi|hello|hey|thanks|thank you|ok|okay|yes|no|bye)\b",
-    r"^who (is|are)\b",
-]
-
-# Patterns that indicate a SIMPLE query (use lighter model)
-_SIMPLE_PATTERNS = [
-    r"^(hi|hello|hey|thanks|thank you|ok|okay|yes|no|bye)\b",
-    r"^what (is|are) (the )?(total|count|number)",
-    r"^how many\b",
-    r"^show me (today|yesterday|recent)",
-    r"^(list|show|get) (my |all )?(alerts|sessions)",
-    r"^(list|show|get) (my |all )?(alerts|sessions)",
-    r"^(when|where) (is|was|did)\b",
-]
-
-# Patterns that indicate a COMPLEX query (use full model)
-_COMPLEX_PATTERNS = [
-    r"(compare|comparison|versus|vs\.?)\b",
-    r"(trend|forecast|predict|project)\b",
-    r"(why|explain|analyze|analysis|insight|recommend)\b",
-    r"(strateg|optimi|improv|suggest)\b",
-    r"(chart|graph|visual|report|pdf|excel|export)\b",
-    r"(month.over.month|year.over.year|quarter|YoY|MoM|QoQ)\b",
-    r"(dso|dpo|dio|working capital|cash flow|margin|ratio)\b",
-    r"(top \d+|bottom \d+|best|worst|rank)\b",
-    r"(if|what would|scenario|simulation)\b",
-]
-
-_flash_re = [re.compile(p, re.IGNORECASE) for p in _FLASH_PATTERNS]
-_simple_re = [re.compile(p, re.IGNORECASE) for p in _SIMPLE_PATTERNS]
-_complex_re = [re.compile(p, re.IGNORECASE) for p in _COMPLEX_PATTERNS]
-
-
-def classify_query(question):
-    """
-    Classify a user query by complexity tier.
-    Returns: (complexity_str, tier_name)
-      - ("flash", "tier_1")   — greetings, trivial lookups
-      - ("simple", "tier_2")  — counts, simple lists
-      - ("complex", "tier_3") — analysis, comparisons, strategy
-    The caller resolves tier_name → actual model doc via providers.get_model_for_tier().
-    """
-    q = question.strip()
-
-    # Very short queries are usually simple
-    if len(q) < 20:
-        for pat in _flash_re:
-            if pat.search(q):
-                return "flash", "tier_1"
-        for pat in _simple_re:
-            if pat.search(q):
-                return "simple", "tier_2"
-
-    # Check for complex patterns first (they take priority)
-    for pat in _complex_re:
-        if pat.search(q):
-            return "complex", "tier_3"
-
-    # Check for simple patterns
-    for pat in _flash_re:
-        if pat.search(q):
-            return "flash", "tier_1"
-    for pat in _simple_re:
-        if pat.search(q):
-            return "simple", "tier_2"
-
-    # Default: use full model for anything ambiguous
-    return "complex", "tier_3"
+# ─── Smart Query Routing (Hybrid Classifier v2.0) ───────────────────────────
+# Two-stage classification: regex fast-path → LLM fallback.
+# Patterns live in classification_patterns.py (easy to extend).
+# Hybrid logic lives in classifier.py (regex first, then Tier 1 LLM).
+from askerp.classifier import classify_query  # noqa: F401 — re-exported for backward compat
 
 
 # ─── Clarification Engine (Sprint 6B) ────────────────────────────────────────
