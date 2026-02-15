@@ -1698,7 +1698,16 @@ def process_chat(user, question, conversation_history=None, image_data=None):
         }
 
     # ── Step 3: Build Messages ───────────────────────────────────────────
-    system_prompt = get_system_prompt(user)
+    # Flash tier: use a minimal system prompt (saves ~4K input tokens)
+    if tier_used == "tier_1":
+        user_doc = frappe.get_doc("User", user)
+        system_prompt = (
+            f"You are AskERP, a friendly business assistant. "
+            f"You're chatting with {user_doc.full_name or user}. "
+            f"Keep responses brief and warm. Today is {frappe.utils.today()}."
+        )
+    else:
+        system_prompt = get_system_prompt(user)
     messages = []
     if conversation_history:
         messages.extend(conversation_history)
@@ -1721,7 +1730,31 @@ def process_chat(user, question, conversation_history=None, image_data=None):
     else:
         messages.append({"role": "user", "content": question})
 
-    # ── Step 4: Tool Use Loop ────────────────────────────────────────────
+    # ── Step 4: Tier-Aware Optimization ──────────────────────────────────
+    #
+    # Cost optimization: different tiers get different capabilities.
+    # Flash (greetings): no tools, no thinking, low max_tokens → ~90% cheaper
+    # Simple (lookups):  tools yes, no thinking, medium max_tokens → ~50% cheaper
+    # Complex (analysis): full tools, thinking if supported, full max_tokens
+    #
+    # Override max_tokens based on tier (saves output token cost)
+    _TIER_MAX_TOKENS = {
+        "tier_1": 1024,    # Flash: greetings, single-line answers
+        "tier_2": 4096,    # Simple: lookups, short tables, counts
+        "tier_3": None,    # Complex: use model default (8192-16384)
+        "vision": None,    # Vision: use model default
+    }
+    tier_max = _TIER_MAX_TOKENS.get(tier_used)
+    if tier_max and tier_max < (model_doc.max_output_tokens or 99999):
+        # Temporarily override the model's max_output_tokens for this request
+        model_doc._original_max_tokens = model_doc.max_output_tokens
+        model_doc.max_output_tokens = tier_max
+
+    # Disable extended thinking for flash/simple tiers (saves 2x output tokens)
+    if tier_used in ("tier_1", "tier_2"):
+        model_doc._original_thinking = getattr(model_doc, "supports_thinking", 0)
+        model_doc.supports_thinking = 0
+
     total_input_tokens = 0
     total_output_tokens = 0
     cache_read_tokens = 0
@@ -1732,7 +1765,13 @@ def process_chat(user, question, conversation_history=None, image_data=None):
     budget_exceeded = False
 
     max_rounds = model_doc.max_tool_rounds if (model_doc.max_tool_rounds and model_doc.max_tool_rounds > 0) else _FALLBACK_MAX_TOOL_ROUNDS
-    tools = get_all_tools(user) if model_doc.supports_tools else None
+
+    # Flash tier: skip tools entirely (saves ~2K input tokens per call)
+    if tier_used == "tier_1":
+        tools = None
+        max_rounds = 1  # No tool use rounds needed
+    else:
+        tools = get_all_tools(user) if model_doc.supports_tools else None
 
     for _round_num in range(max_rounds):
         response = provider_call(model_doc, messages, system_prompt, tools)
@@ -2163,7 +2202,15 @@ def process_chat_stream(user, question, conversation_history=None, stream_id=Non
                     "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "cache_read_tokens": 0, "cache_creation_tokens": 0}}
 
         # ── Build Messages ───────────────────────────────────────────
-        system_prompt = get_system_prompt(user)
+        if tier_used == "tier_1":
+            user_doc_s = frappe.get_doc("User", user)
+            system_prompt = (
+                f"You are AskERP, a friendly business assistant. "
+                f"You're chatting with {user_doc_s.full_name or user}. "
+                f"Keep responses brief and warm. Today is {frappe.utils.today()}."
+            )
+        else:
+            system_prompt = get_system_prompt(user)
         messages = []
         if conversation_history:
             messages.extend(conversation_history)
@@ -2186,6 +2233,20 @@ def process_chat_stream(user, question, conversation_history=None, stream_id=Non
         else:
             messages.append({"role": "user", "content": question})
 
+        # ── Tier-Aware Optimization (same as process_chat) ────────────
+        _TIER_MAX_TOKENS_S = {
+            "tier_1": 1024,
+            "tier_2": 4096,
+            "tier_3": None,
+            "vision": None,
+        }
+        tier_max_s = _TIER_MAX_TOKENS_S.get(tier_used)
+        if tier_max_s and tier_max_s < (model_doc.max_output_tokens or 99999):
+            model_doc.max_output_tokens = tier_max_s
+
+        if tier_used in ("tier_1", "tier_2"):
+            model_doc.supports_thinking = 0
+
         total_input_tokens = 0
         total_output_tokens = 0
         cache_read_tokens = 0
@@ -2196,7 +2257,12 @@ def process_chat_stream(user, question, conversation_history=None, stream_id=Non
         budget_exceeded = False
 
         max_rounds = model_doc.max_tool_rounds if (model_doc.max_tool_rounds and model_doc.max_tool_rounds > 0) else _FALLBACK_MAX_TOOL_ROUNDS
-        tools = get_all_tools(user) if model_doc.supports_tools else None
+
+        if tier_used == "tier_1":
+            tools = None
+            max_rounds = 1
+        else:
+            tools = get_all_tools(user) if model_doc.supports_tools else None
 
         _update_stream_cache(cache_key, status="thinking", text="")
 
